@@ -16,11 +16,5 @@
     "pi-web-plugins/**/*.ts",
     "pi-packages/**/*.ts"
   ],
-  "ignoreExportsUsedInFile": true,
-  "ignoreDependencies": [
-    "@hicaru/pi-rlm",
-    "pi-mcp-adapter",
-    "version",
-    "view"
-  ]
+  "ignoreExportsUsedInFile": true
 }
