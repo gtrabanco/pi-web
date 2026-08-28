@@ -623,8 +623,9 @@ worktree_path="$1"
               <ul>
                 <li>
                   Unset or <code>auto</code> uses Bun when it is on <code>PATH</code> and can boot PI WEB, and the first
-                  usable Node.js otherwise. Capability wins over availability: a Bun without the native terminal API still
-                  boots PI WEB, so terminals fall back to <code>node-pty</code> on it.
+                  usable Node.js otherwise. Capability wins over availability: the launcher never starts PI WEB on a Bun
+                  that lacks <code>Bun.Terminal</code>, so <code>auto</code> falls through to Node.js and
+                  <code>PI_WEB_RUNTIME=bun</code> stops with an error instead of booting an incapable runtime.
                 </li>
                 <li>
                   <code>bun</code> is a hard requirement — it fails loudly when Bun is missing or cannot boot PI WEB
