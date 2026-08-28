@@ -634,10 +634,14 @@ worktree_path="$1"
                 <li>Any other value makes the command exit with an error naming the variable and the accepted values.</li>
               </ul>
               <p>
-                When Node.js is not on the service <code>PATH</code> — common for Homebrew or self-managed installs, where
-                user services start with a minimal system <code>PATH</code> — the launcher also looks for Node.js at its
-                usual install locations after <code>PATH</code>. That lookup never applies to Bun, so installing Bun where a
-                service can find it is what makes <code>auto</code> pick Bun.
+                When a runtime is not on the service <code>PATH</code> — user services start with the service manager's
+                environment, not your interactive shell — the launcher also looks in the usual install locations, after
+                <code>PATH</code>: Bun at <code>~/.bun/bin/bun</code>, <code>/usr/local/bin/bun</code>,
+                <code>/opt/homebrew/bin/bun</code>, <code>/usr/bin/bun</code>, and Node.js at <code>/usr/bin/node</code>,
+                <code>/usr/local/bin/node</code>, <code>/opt/homebrew/bin/node</code>. Version-manager directories (nvm, fnm,
+                asdf, mise) are deliberately not among those locations, so a runtime that only exists inside a version manager
+                has to reach the service through its <code>PATH</code>. <code>auto</code> otherwise resolves to whichever
+                runtime is found, Bun first.
               </p>
               <p>
                 Auto-detection needs no configuration, so this variable is only for pinning a runtime. Set it wherever the
