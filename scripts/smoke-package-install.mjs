@@ -1,5 +1,5 @@
 import { execFile, spawn } from "node:child_process";
-import { mkdir, mkdtemp, readFile, rm, symlink, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readdir, readFile, rm, symlink, writeFile } from "node:fs/promises";
 import { createRequire } from "node:module";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
@@ -254,12 +254,28 @@ async function smokeBunTerminalService(dataRoot, installRoot, environment) {
       throw new Error(`GET /terminals after create returned ${JSON.stringify(listed.body)}`);
     }
 
-    // The attach stream is the observable proof that a real PTY is running under Bun.
+    // The attach stream is the observable proof that a real PTY is running under Bun: bytes that
+    // only ever travelled through a pipe would look identical here. The quoted-split markers keep
+    // the assertion unambiguous, because the PTY also echoes the typed command back.
     const echoed = await readTerminalEcho(`ws://127.0.0.1:${String(port)}/terminals/${terminal.id}/socket`, `printf 'b:${MARKER}\\n'`);
     if (!echoed.includes(`b:${MARKER}`)) {
       throw new Error(`Terminal attach stream did not carry the marker; saw ${JSON.stringify(echoed.slice(-400))}`);
     }
+    // The marker alone would also travel through a pipe, so ask the shell what its own descriptors
+    // are. `t""tyyes` prints `ttyyes` while the command the PTY echoes back keeps the quotes, which
+    // is what makes the two branches distinguishable in this stream.
+    const ttyState = await readTerminalEcho(
+      `ws://127.0.0.1:${String(port)}/terminals/${terminal.id}/socket`,
+      `if [ -t 0 ] && [ -t 1 ]; then echo t""tyyes; else echo t""tyno; fi`,
+      "ttyyes",
+    );
+    if (!ttyState.includes("ttyyes")) {
+      throw new Error(`Created terminal is not an interactive terminal device; saw ${JSON.stringify(ttyState.slice(-400))}`);
+    }
     await requestJson("DELETE", `${base}/terminals/${terminal.id}`, service);
+    // Deleting the terminal must take its shell with it, otherwise the smoke leaks PTY children.
+    await waitFor(async () => (await countDescendants(service.pid)) === 0, 10_000,
+      async () => new Error(`Terminal shell survived DELETE /terminals/:id — ${String(await countDescendants(service.pid))} descendants of pid ${String(service.pid)} remain`));
     console.log(`✓ bun session daemon (pid ${String(service.pid)}) served a terminal through Bun.Terminal`);
   } finally {
     await stopService(service);
@@ -347,6 +363,9 @@ function logTail(service) {
  */
 async function stopService(service) {
   if (service.exited) return;
+  // Snapshot the tree before signalling: once the leader exits, /proc no longer says who its
+  // children were, and an orphaned PTY shell is precisely what this smoke must not leave behind.
+  const spawned = await descendantPids(service.pid);
   service.child.kill("SIGTERM");
   const deadline = Date.now() + 15_000;
   while (!service.exited && Date.now() < deadline) {
@@ -356,6 +375,76 @@ async function stopService(service) {
     service.child.kill("SIGKILL");
     throw new Error(`${service.command} (pid ${String(service.pid)}) did not exit on SIGTERM\n${logTail(service)}`);
   }
+  // Reparented children get a moment to notice their leader is gone before this counts as a leak.
+  let survivors = [];
+  const leakDeadline = Date.now() + 5_000;
+  for (;;) {
+    const stillRunning = [];
+    for (const pid of spawned) {
+      if (processIsAlive(pid)) stillRunning.push(pid);
+    }
+    survivors = stillRunning;
+    if (stillRunning.length === 0 || Date.now() >= leakDeadline) break;
+    await delay(100);
+  }
+  if (survivors.length > 0) {
+    throw new Error(`${service.command} (pid ${String(service.pid)}) left ${String(survivors.length)} descendant process(es) behind: ${survivors.join(", ")}\n${logTail(service)}`);
+  }
+}
+
+function processIsAlive(pid) {
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch (error) {
+    // EPERM means the process exists but belongs to someone else.
+    return error.code === "EPERM";
+  }
+}
+
+/** Polls a condition until it holds or the budget runs out; used for teardown assertions. */
+async function waitFor(condition, timeoutMs, onFailure) {
+  const deadline = Date.now() + timeoutMs;
+  for (;;) {
+    if (await condition()) return;
+    if (Date.now() >= deadline) throw await onFailure();
+    await new Promise((resolvePromise) => setTimeout(resolvePromise, 100));
+  }
+}
+
+/**
+ * Direct and indirect children of `pid`, read from /proc. A stop that only reaps the process it
+ * spawned would still leak the session daemon's PTY shells and children they started.
+ */
+async function descendantPids(pid) {
+  const children = new Map();
+  for (const entry of await readdir("/proc", { withFileTypes: true })) {
+    if (!entry.isDirectory() || !/^\d+$/.test(entry.name)) continue;
+    const statPath = join("/proc", entry.name, "stat");
+    let stat;
+    try {
+      stat = await readFile(statPath, "utf8");
+    } catch {
+      continue; // the process exited while we were scanning
+    }
+    // comm is parenthesised and may contain spaces, so the parent pid is field 4 after the ')'.
+    const fields = stat.slice(stat.lastIndexOf(")") + 1).trim().split(/\s+/u);
+    const ppid = Number(fields[1]);
+    if (Number.isFinite(ppid) && ppid > 0) children.set(ppid, [...(children.get(ppid) ?? []), Number(entry.name)]);
+  }
+  const found = [];
+  const queue = [pid];
+  while (queue.length > 0) {
+    for (const child of children.get(queue.shift()) ?? []) {
+      found.push(child);
+      queue.push(child);
+    }
+  }
+  return found;
+}
+
+async function countDescendants(pid) {
+  return (await descendantPids(pid)).length;
 }
 
 async function waitForJson(url, service, timeoutMs) {
@@ -402,7 +491,7 @@ async function requestText(method, url, service) {
  * Uses bun when it is available (this file may run under either runtime) and falls back to the
  * Node global WebSocket, so the smoke itself is runtime-agnostic while the service is bun.
  */
-async function readTerminalEcho(socketUrl, input) {
+async function readTerminalEcho(socketUrl, input, expectation = MARKER) {
   if (typeof globalThis.WebSocket !== "function") {
     throw new Error("The smoke needs a global WebSocket (Node 22+ and bun both provide one)");
   }
@@ -434,7 +523,7 @@ async function readTerminalEcho(socketUrl, input) {
       } catch {
         seen += raw;
       }
-      if (seen.includes(MARKER)) {
+      if (seen.includes(expectation)) {
         clearTimeout(timer);
         socket.close();
         resolvePromise(seen);
