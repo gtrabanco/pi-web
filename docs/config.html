@@ -640,10 +640,13 @@ worktree_path="$1"
               </p>
               <ul>
                 <li>
-                  Unset or <code>auto</code> uses Bun when it is on <code>PATH</code> and can boot PI WEB, and the first
-                  usable Node.js otherwise. Capability wins over availability: the launcher never starts PI WEB on a Bun
-                  that lacks <code>Bun.Terminal</code>, so <code>auto</code> falls through to Node.js and
-                  <code>PI_WEB_RUNTIME=bun</code> stops with an error instead of booting an incapable runtime.
+                  Unset or <code>auto</code> follows the package manager that installed PI WEB: a <code>bun add -g</code> tree
+                  starts on Bun, and npm (or any other) installs start on Node.js. The other runtime is used only when the
+                  preferred one is not usable. Capability wins over availability: the launcher never starts PI WEB on a Bun
+                  that lacks <code>Bun.Terminal</code> — with no usable Node.js the command fails and names the fix
+                  (<code>bun upgrade</code>, or reinstall with npm), and with a usable Node.js it starts there and warns that
+                  terminals need the trusted <code>node-pty</code> build. <code>PI_WEB_RUNTIME=bun</code> and
+                  <code>PI_WEB_RUNTIME=node</code> stay hard requirements.
                 </li>
                 <li>
                   <code>bun</code> is a hard requirement — it fails loudly when Bun is missing or cannot boot PI WEB
@@ -659,8 +662,10 @@ worktree_path="$1"
                 <code>/opt/homebrew/bin/bun</code>, <code>/usr/bin/bun</code>, and Node.js at <code>/usr/bin/node</code>,
                 <code>/usr/local/bin/node</code>, <code>/opt/homebrew/bin/node</code>. Version-manager directories (nvm, fnm,
                 asdf, mise) are deliberately not among those locations, so a runtime that only exists inside a version manager
-                has to reach the service through its <code>PATH</code>. <code>auto</code> otherwise resolves to whichever
-                runtime is found, Bun first.
+                has to reach the service through its <code>PATH</code>. The launcher reads the installing package manager from
+                the tree layout: bun's global root is <code>install/global/node_modules</code>, and every other layout — npm,
+                pnpm, <code>bun add -g --linker npm</code>, a dev checkout — is npm-shaped and prefers Node.js.
+                <code>PI_WEB_RUNTIME</code> always overrides this preference.
               </p>
               <p>
                 Auto-detection needs no configuration, so this variable is only for pinning a runtime. Set it wherever the

@@ -172,15 +172,17 @@
                 package's executables, while PI WEB's own launcher is what chooses a runtime.
               </p>
               <p>
-                Bun runs a dependency's install script only for packages you trust, so if you deliberately want the
-                <code>node-pty</code> binding — to run a component directly on Bun without the launcher, for example —
-                trust it and reinstall: <code>bun pm trust node-pty</code>.
+                Bun runs a dependency's install script only for packages you trust, so if PI WEB ever starts on Node.js on
+                this machine — an older Bun without <code>Bun.Terminal</code>, for example — terminals need the
+                <code>node-pty</code> binding: trust it and reinstall: <code>bun pm trust node-pty</code>.
               </p>
               <p>
-                PI WEB starts on Bun when the launcher can find a Bun that provides its native terminal API; a Bun without it
-                is not started at all — <code>auto</code> selects Node.js, and <code>PI_WEB_RUNTIME=bun</code> stops with an
-                error. Node.js stays fully supported. See
-                <a href="config#runtime">JavaScript runtime</a> for the order of preference, the
+                Because you installed with Bun, PI WEB starts on Bun whenever that Bun provides its native terminal API, even
+                when Node.js is also installed — the package manager you installed with decides. A Bun without
+                <code>Bun.Terminal</code> is never started: with a usable Node.js the command starts there and warns that
+                terminals need the trusted <code>node-pty</code> build, and with no usable Node.js it stops and tells you to
+                run <code>bun upgrade</code> or reinstall with npm. Node.js stays fully supported. See
+                <a href="config#runtime">JavaScript runtime</a> for the installer-based preference, the
                 <code>PI_WEB_RUNTIME</code> override, and how to pin a runtime for the services.
               </p>
               <div class="callout">
