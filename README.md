@@ -13,7 +13,18 @@ Run agents where your code, tools, credentials, and build caches live. Supervise
 
 ## Quick start
 
-Requires Node.js 22.19.0+, npm, Pi Coding Agent 1.x configured for your user, git, and the development tools your agents need.
+Requirements:
+
+- Node.js 22.19.0 or newer, with npm (fully supported) — or Bun (best-effort, community-supported)
+- Pi Coding Agent `>=0.84.0`, configured for your user
+- git and the development tools your agents need
+
+Install and start PI WEB as per-user services:
+
+```bash
+npm install -g @jmfederico/pi-web --allow-scripts=node-pty
+pi-web install
+pi-web doctor
 ```
 
 On npm 12, the scoped flag lets `node-pty` prepare its required native module.
