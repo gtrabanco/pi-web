@@ -107,7 +107,7 @@
             <section id="requirements">
               <h2>Requirements</h2>
               <ul>
-                <li><strong>Node.js 22.19.0 or newer</strong> and npm, or <strong>Bun</strong> — see <a href="#bun-install">Install with Bun</a>.</li>
+                <li><strong>Node.js 22.19.0 or newer</strong> and npm (fully supported), or <strong>Bun</strong> (best-effort, community-supported) — see <a href="#bun-install">Install with Bun</a>.</li>
                 <li><strong>Pi Coding Agent <code>&gt;=0.83.0</code></strong> installed/configured so the <code>pi</code> command works for your user.</li>
                 <li>A shell login environment that exposes Node, npm, Pi, git, and any tools your agents need.</li>
                 <li>For the automatic installer: a supported per-user service manager.</li>
@@ -185,6 +185,11 @@
                 <a href="config#runtime">JavaScript runtime</a> for the installer-based preference, the
                 <code>PI_WEB_RUNTIME</code> override, and how to pin a runtime for the services.
               </p>
+              <div class="callout warning">
+                <strong>Best-effort support:</strong>
+                Node.js is the fully supported runtime. Running PI WEB on Bun is maintained on a best-effort basis by the
+                community: bugs or problems that only reproduce when running on Bun are fixed as community effort allows.
+              </div>
               <div class="callout">
                 <strong>After a package upgrade:</strong>
                 services installed by name (<code>ExecStart=pi-web-sessiond</code>) pick up the new version automatically,
