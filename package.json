@@ -118,6 +118,7 @@
     "@earendil-works/pi-ai": "^1.2.0",
     "@earendil-works/pi-coding-agent": "^1.2.0",
     "@eslint/js": "^10.0.1",
+    "@hicaru/pi-rlm": "^0.3.15",
     "@types/node": "^26.6.5",
     "@types/ws": "^8.18.2",
     "dompurify": "^3.4.17",
@@ -126,7 +127,9 @@
     "happy-dom": "^20.14.6",
     "knip": "^6.41.0",
     "mermaid": "^12.2.0",
-    "tsx": "^4.23.15",
+    "pi-effort": "^0.0.8",
+    "pi-subagents": "^0.60.0",
+    "tsx": "^4.23.15"
     "typescript": "^6.0.3",
     "typescript-eslint": "^8.71.2",
     "vite": "^8.3.4",
