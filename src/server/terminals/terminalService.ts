@@ -1,7 +1,9 @@
 import { EventEmitter } from "node:events";
 import { randomUUID } from "node:crypto";
 import type { TerminalCommandRun, TerminalCommandRunFilter, TerminalCommandRunStatus, TerminalUiEvent } from "../../shared/apiTypes.js";
+import { targetWorkspaceIdMetadataKey, workspaceDeleteOperation, workspaceDeleteOperationMetadataKey } from "../../shared/workspaceDeletion.js";
 import type { SessionEventHub } from "../realtime/sessionEventHub.js";
+import type { ServerNoticeCreator } from "../notices/serverNoticeService.js";
 import type { WorkspaceActivityService } from "../activity/workspaceActivityService.js";
 import { createDefaultBackend, type TerminalBackend } from "./backend.js";
 
@@ -42,17 +44,13 @@ export class TerminalService {
   private readonly backend: TerminalBackend;
 
   constructor(
-    events?: SessionEventHub,
-    workspaceActivity?: Pick<WorkspaceActivityService, "updateTerminal" | "removeTerminal">,
+    private readonly events?: SessionEventHub,
+    private readonly workspaceActivity?: Pick<WorkspaceActivityService, "updateTerminal" | "removeTerminal">,
+    private readonly notices?: ServerNoticeCreator,
     backendOverride?: TerminalBackend,
   ) {
     this.backend = backendOverride ?? createDefaultBackend();
-    this.events = events;
-    this.workspaceActivity = workspaceActivity;
   }
-
-  private events: SessionEventHub | undefined;
-  private workspaceActivity: Pick<WorkspaceActivityService, "updateTerminal" | "removeTerminal"> | undefined;
 
   list(cwd: string): TerminalInfo[] {
     return [...this.terminals.values()]
@@ -264,6 +262,18 @@ export class TerminalService {
       completedAt: new Date().toISOString(),
     };
     this.commandRuns.set(runId, completed);
+    if (completed.status === "failed" && isWorkspaceDeletionRun(completed)) {
+      this.notices?.record({
+        severity: "error",
+        message: "Workspace removal failed. See terminal output.",
+        source: workspaceDeleteOperation,
+        context: {
+          commandRunId: completed.id,
+          projectId: completed.projectId,
+          workspaceId: completed.metadata[targetWorkspaceIdMetadataKey] ?? completed.workspaceId,
+        },
+      });
+    }
   }
 
   private require(id: string): TerminalRecord {
@@ -341,6 +351,10 @@ function matchesCommandRunFilter(run: TerminalCommandRun, filter: TerminalComman
 
 function isTerminalCommandRunFinal(status: TerminalCommandRunStatus): boolean {
   return status === "succeeded" || status === "failed";
+}
+
+function isWorkspaceDeletionRun(run: TerminalCommandRun): boolean {
+  return run.metadata[workspaceDeleteOperationMetadataKey] === workspaceDeleteOperation;
 }
 
 function copyCommandRun(run: TerminalCommandRun): TerminalCommandRun {
