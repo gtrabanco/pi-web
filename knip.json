@@ -20,5 +20,8 @@
   "ignoreDependencies": [
     "pi-effort",
     "pi-subagents"
+  ],
+  "ignoreBinaries": [
+    "ps"
   ]
 }
