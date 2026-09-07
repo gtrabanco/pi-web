@@ -122,7 +122,7 @@ describe("buildApp remote machine proxy routes", () => {
     expect(request).toHaveBeenCalledWith("POST", "/api/sessions/s1/tree/fork", forkBody, { timeoutMs: SESSION_TREE_FORK_PROXY_TIMEOUT_MS });
   });
 
-  it("proxies only the allowlisted workspace provider backend shape with its bounded deadline", async () => {
+  it("proxies distinct owner-backed and paired backend routes with the same bounded cancellable deadline", async () => {
     const addResponse = await appTestContext.app.inject({ method: "POST", url: "/api/machines", payload: { name: "Remote", baseUrl: "https://remote.example.test/" } });
     const remote = addResponse.json<{ id: string }>();
     const request = vi.fn<MachineClient["request"]>((method, path, body) => Promise.resolve({
@@ -133,24 +133,26 @@ describe("buildApp remote machine proxy routes", () => {
     appTestContext.remoteClient = fakeRemoteClient({ request });
     const payload = { revision: "server-r1", input: { cards: ["alpha"], includeClosed: false } };
 
-    const response = await appTestContext.app.inject({
-      method: "POST",
-      url: `/api/machines/${remote.id}/plugin-backends/board-tools/projects/${encodeURIComponent("p 1")}/workspaces/${encodeURIComponent("w 1")}/cards.summary`,
-      payload,
-    });
+    for (const collection of ["plugin-backends", "paired-plugin-backends"] as const) {
+      const response = await appTestContext.app.inject({
+        method: "POST",
+        url: `/api/machines/${remote.id}/${collection}/board-tools/projects/${encodeURIComponent("p 1")}/workspaces/${encodeURIComponent("w 1")}/cards.summary`,
+        payload,
+      });
 
-    expect(response.statusCode).toBe(200);
-    expect(response.json()).toEqual({
-      method: "POST",
-      path: "/api/plugin-backends/board-tools/projects/p%201/workspaces/w%201/cards.summary",
-      body: payload,
-    });
-    expect(request).toHaveBeenCalledWith(
-      "POST",
-      "/api/plugin-backends/board-tools/projects/p%201/workspaces/w%201/cards.summary",
-      payload,
-      { timeoutMs: PLUGIN_BACKEND_FEDERATION_TIMEOUT_MS },
-    );
+      expect(response.statusCode).toBe(200);
+      expect(response.json()).toEqual({
+        method: "POST",
+        path: `/api/${collection}/board-tools/projects/p%201/workspaces/w%201/cards.summary`,
+        body: payload,
+      });
+    }
+    expect(request).toHaveBeenCalledTimes(2);
+    for (const call of request.mock.calls) {
+      expect(call[3]?.timeoutMs).toBe(PLUGIN_BACKEND_FEDERATION_TIMEOUT_MS);
+      expect(call[3]?.signal).toBeInstanceOf(AbortSignal);
+      expect(call[3]?.signal?.aborted).toBe(false);
+    }
   });
 
   it("maps an old remote provider-backend route to an explicit lifecycle compatibility error", async () => {
@@ -622,7 +624,7 @@ describe("buildApp remote machine proxy routes", () => {
     expect(request).toHaveBeenNthCalledWith(2, "PUT", "/api/projects/p1/workspaces/w1/trust", trustBody);
   });
 
-  it("proxies remote terminal command-run and continue routes", async () => {
+  it("proxies remote workspace removal with its bounded cancellation policy", async () => {
     const addResponse = await appTestContext.app.inject({ method: "POST", url: "/api/machines", payload: { name: "Remote", baseUrl: "https://remote.example.test/" } });
     const remote = addResponse.json<{ id: string }>();
     const request = vi.fn<MachineClient["request"]>((method, path) => Promise.resolve({
@@ -632,27 +634,14 @@ describe("buildApp remote machine proxy routes", () => {
     }));
     appTestContext.remoteClient = fakeRemoteClient({ request });
 
-    const createBody = { origin: "core", title: "Build", command: "npm test", metadata: { "pi.operation": "test" } };
     const deleteBody = { precondition: "v1.confirmed" };
     const deleteWorkspaceResponse = await appTestContext.app.inject({
       method: "DELETE",
       url: `/api/machines/${remote.id}/projects/p1/workspaces/w1`,
       payload: deleteBody,
     });
-    const createResponse = await appTestContext.app.inject({ method: "POST", url: `/api/machines/${remote.id}/projects/p1/workspaces/w1/terminal-command-runs`, payload: createBody });
-    const listResponse = await appTestContext.app.inject({ method: "GET", url: `/api/machines/${remote.id}/terminal-command-runs?projectId=p1&statuses=running` });
-    const getResponse = await appTestContext.app.inject({ method: "GET", url: `/api/machines/${remote.id}/terminal-command-runs/run1` });
-    const cancelResponse = await appTestContext.app.inject({ method: "POST", url: `/api/machines/${remote.id}/terminal-command-runs/run1/cancel` });
-    const closeWorkspaceTerminalsResponse = await appTestContext.app.inject({ method: "DELETE", url: `/api/machines/${remote.id}/projects/p1/workspaces/w1/terminals` });
-    const continueResponse = await appTestContext.app.inject({ method: "POST", url: `/api/machines/${remote.id}/projects/p1/workspaces/w1/terminals/t1/continue` });
 
     expect(deleteWorkspaceResponse.json()).toEqual({ method: "DELETE", path: "/api/projects/p1/workspaces/w1" });
-    expect(createResponse.json()).toEqual({ method: "POST", path: "/api/projects/p1/workspaces/w1/terminal-command-runs" });
-    expect(listResponse.json()).toEqual({ method: "GET", path: "/api/terminal-command-runs?projectId=p1&statuses=running" });
-    expect(getResponse.json()).toEqual({ method: "GET", path: "/api/terminal-command-runs/run1" });
-    expect(cancelResponse.json()).toEqual({ method: "POST", path: "/api/terminal-command-runs/run1/cancel" });
-    expect(closeWorkspaceTerminalsResponse.json()).toEqual({ method: "DELETE", path: "/api/projects/p1/workspaces/w1/terminals" });
-    expect(continueResponse.json()).toEqual({ method: "POST", path: "/api/projects/p1/workspaces/w1/terminals/t1/continue" });
     const deletionRequest = request.mock.calls.find((call) => call[0] === "DELETE");
     expect(deletionRequest?.slice(0, 3)).toEqual([
       "DELETE",
@@ -662,7 +651,6 @@ describe("buildApp remote machine proxy routes", () => {
     expect(deletionRequest?.[3]?.timeoutMs).toBe(WORKSPACE_REMOVAL_FEDERATION_TIMEOUT_MS);
     expect(deletionRequest?.[3]?.signal).toBeInstanceOf(AbortSignal);
     expect(deletionRequest?.[3]?.signal?.aborted).toBe(false);
-    expect(request).toHaveBeenCalledWith("POST", "/api/projects/p1/workspaces/w1/terminal-command-runs", createBody);
   });
 
   it("proxies remote session reloads through the selected machine", async () => {

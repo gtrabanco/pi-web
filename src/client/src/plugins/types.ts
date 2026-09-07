@@ -1,6 +1,6 @@
 import type { TemplateResult } from "lit";
 import type { AppAction } from "../actions";
-import type { DeleteWorkspaceFileResponse, FileContentResponse, FileTreeResponse, JsonValue, Machine, MoveWorkspaceFileOptions, MoveWorkspaceFileResponse, RunTerminalCommandInput, TerminalCommandRun, TerminalCommandRunFilter, TerminalCommandRunHandle, WriteWorkspaceFileOptions, WriteWorkspaceFileResponse, Workspace } from "../api";
+import type { DeleteWorkspaceFileResponse, FileContentResponse, FileTreeResponse, JsonValue, Machine, MoveWorkspaceFileOptions, MoveWorkspaceFileResponse, TerminalCommandRunHandle, WriteWorkspaceFileOptions, WriteWorkspaceFileResponse, Workspace } from "../api";
 import type { AppState } from "../appState";
 import type { SettingsSection } from "../settingsRoute";
 import type { LocalContributionId, PluginId, QualifiedContributionId } from "./ids";
@@ -15,6 +15,8 @@ export interface PiWebPluginRegistration {
   machineId?: string;
   sourcePluginId?: PluginId;
   backendRevision?: string;
+  pairedRequestVersion?: 1;
+  pairedChannelVersion?: 1;
   machineSpecific?: boolean;
 }
 
@@ -22,6 +24,8 @@ export interface WorkspacePluginBinding {
   registrationPluginId: PluginId;
   sourcePluginId: PluginId;
   backendRevision?: string;
+  pairedRequestVersion?: 1;
+  pairedChannelVersion?: 1;
 }
 
 export interface PiWebPlugin {
@@ -115,6 +119,58 @@ export interface WorkspaceBackend {
   request(operation: string, input: JsonValue): Promise<JsonValue>;
 }
 
+export interface PairedWorkspaceBackendRequestOptions {
+  readonly signal?: AbortSignal;
+}
+
+export interface PairedWorkspaceBackendChannelOptions {
+  readonly signal?: AbortSignal;
+  readonly onData: (data: JsonValue) => void;
+}
+
+export interface PairedWorkspaceBackendChannelClose {
+  readonly code: number;
+  readonly reason: string;
+  readonly wasClean: boolean;
+  readonly error?: Readonly<{ code: string; message: string }>;
+}
+
+export interface PairedWorkspaceBackendChannel {
+  readonly closed: Promise<PairedWorkspaceBackendChannelClose>;
+  send(data: JsonValue): void;
+  close(reason?: string): void;
+}
+
+interface PairedWorkspaceBackendBaseV1 {
+  readonly version: 1;
+}
+
+interface PairedWorkspaceBackendRequestCapabilityV1 {
+  readonly requestVersion: 1;
+  request(operation: string, input: JsonValue, options?: PairedWorkspaceBackendRequestOptions): Promise<JsonValue>;
+}
+
+interface PairedWorkspaceBackendWithoutRequest {
+  readonly requestVersion?: undefined;
+  request?: undefined;
+}
+
+interface PairedWorkspaceBackendChannelCapabilityV1 {
+  readonly channelVersion: 1;
+  openChannel(operation: string, input: JsonValue, options: PairedWorkspaceBackendChannelOptions): Promise<PairedWorkspaceBackendChannel>;
+}
+
+interface PairedWorkspaceBackendWithoutChannel {
+  readonly channelVersion?: undefined;
+  openChannel?: undefined;
+}
+
+export type PairedWorkspaceBackendV1 = PairedWorkspaceBackendBaseV1 & (
+  | (PairedWorkspaceBackendRequestCapabilityV1 & PairedWorkspaceBackendWithoutChannel)
+  | (PairedWorkspaceBackendWithoutRequest & PairedWorkspaceBackendChannelCapabilityV1)
+  | (PairedWorkspaceBackendRequestCapabilityV1 & PairedWorkspaceBackendChannelCapabilityV1)
+);
+
 export interface WorkspaceHost {
   requestRender(): void;
 }
@@ -125,10 +181,16 @@ export interface WorkspaceContext {
   state: AppState;
   files: WorkspaceFilesContextValue;
   backend?: WorkspaceBackend;
+  pairedBackend?: PairedWorkspaceBackendV1;
   host: WorkspaceHost;
 }
 
-export type WorkspaceTerminalCommandInput = Omit<RunTerminalCommandInput, "workspace">;
+export interface WorkspaceTerminalCommandInput {
+  title: string;
+  command: string;
+  metadata?: Record<string, string>;
+  open?: boolean;
+}
 
 export interface WorkspacePanelTerminal {
   open(options?: { terminalId?: string | undefined }): void;
@@ -136,15 +198,7 @@ export interface WorkspacePanelTerminal {
 }
 
 export interface PiWebUnstableRuntimeContext {
-  terminalCommandRuns: TerminalCommandRunsInternalRuntime;
   openSettings?: (section?: SettingsSection) => void;
-}
-
-export interface TerminalCommandRunsInternalRuntime {
-  runCommand(input: RunTerminalCommandInput): Promise<TerminalCommandRunHandle>;
-  listCommandRuns(filter?: TerminalCommandRunFilter): Promise<TerminalCommandRun[]>;
-  getCommandRun(runId: string): Promise<TerminalCommandRun | undefined>;
-  open(options?: { terminalId?: string | undefined }): void;
 }
 
 export interface PluginPromptEditor {
@@ -221,16 +275,6 @@ export interface WorkspacePanelContext extends WorkspaceContext {
   terminal: WorkspacePanelTerminal;
   /** Contribution-scoped address-bar state for deep links and browser history. */
   navigation?: WorkspacePanelNavigationV1;
-  /**
-   * @deprecated Runtime-only compatibility alias for pre-v2 plugins. Use `terminal.open()` instead.
-   * This is intentionally not part of the public `@jmfederico/pi-web/plugin-api` declarations.
-   */
-  openTerminal?: (options?: { terminalId?: string | undefined }) => void;
-  piWebUnstable?: Pick<PiWebUnstableRuntimeContext, "terminalCommandRuns">;
-  activeTerminalCount: number;
-  selectedTerminalId: string | undefined;
-  terminalAutoStart: boolean;
-  onSelectTerminal: (terminalId: string | undefined, options?: { replace?: boolean | undefined }) => void;
 }
 
 export type WorkspacePanelIcon = TemplateResult;

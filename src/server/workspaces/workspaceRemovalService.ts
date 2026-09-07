@@ -7,7 +7,7 @@ import {
   WORKSPACE_REMOVAL_OPERATION_TIMEOUT_MS,
 } from "../../shared/workspaceRemovalProtocol.js";
 import type { Project } from "../types.js";
-import type { RunTerminalCommandOptions } from "../terminals/terminalService.js";
+import type { RunTerminalCommandOptions } from "../terminals/requiredTerminalService.js";
 import {
   WorkspaceProviderRemovalError,
   type WorkspaceProviderRemovalTarget,
@@ -171,6 +171,10 @@ export class WorkspaceRemovalService {
             title: plan.title,
             command,
             metadata: workspaceDeletionMetadata(target),
+            failureNotice: {
+              message: "Workspace removal failed. See terminal output.",
+              context: { targetWorkspaceId: target.id },
+            },
           });
         } catch (error) {
           throw new WorkspaceRemovalError(
@@ -188,7 +192,8 @@ export class WorkspaceRemovalService {
         severity: "error",
         message: `Workspace removal failed: ${errorMessage(failure)}`,
         source: workspaceDeleteOperation,
-        context: { projectId: project.id, workspaceId },
+        scope: { projectId: project.id },
+        context: { targetWorkspaceId: workspaceId },
       });
       throw failure;
     }

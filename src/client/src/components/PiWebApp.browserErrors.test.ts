@@ -121,11 +121,23 @@ describe("PiWebApp workspace removal browser error boundary", () => {
     const noticesValue: unknown = Reflect.get(app, "serverNotices");
     if (!(noticesValue instanceof ServerNoticesController)) throw new Error("Server notices controller was unavailable");
     const notices = noticesValue;
-    vi.spyOn(notices, "hasNotice").mockReturnValue(true);
+    const hasNotice = vi.spyOn(notices, "hasNotice").mockImplementation((machineId, matches) => {
+      expect(machineId).toBe("local");
+      return matches({
+        id: "notice-1",
+        severity: "error",
+        message: "Workspace removal failed: workspace has unsubmitted changes",
+        createdAt: "2026-08-01T00:00:00.000Z",
+        source: "workspace.delete",
+        scope: { projectId: workspace.projectId },
+        context: { targetWorkspaceId: workspace.id },
+      });
+    });
     const scope = workspaceBrowserErrorScope("local", workspace.projectId, workspace.id);
 
     await reportWorkspaceRemovalFailure(app)(workspace, "local", scope, new HttpRequestError("workspace has unsubmitted changes", 400));
 
+    expect(hasNotice).toHaveBeenCalledTimes(2);
     expect(appState(app).browserErrors).toEqual({});
   });
 

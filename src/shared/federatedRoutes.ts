@@ -1,6 +1,9 @@
 import {
+  PAIRED_PLUGIN_BACKEND_CHANNEL_ROUTE_PATH,
+  PAIRED_PLUGIN_BACKEND_REQUEST_ROUTE_PATH,
   PLUGIN_BACKEND_FEDERATION_TIMEOUT_MS,
   PLUGIN_BACKEND_REQUEST_BODY_MAX_BYTES,
+  PLUGIN_BACKEND_REQUEST_ROUTE_PATH,
   PLUGIN_BACKEND_RESPONSE_BODY_MAX_BYTES,
 } from "./pluginBackendProtocol.js";
 import { WORKSPACE_REMOVAL_FEDERATION_TIMEOUT_MS } from "./workspaceRemovalProtocol.js";
@@ -51,10 +54,19 @@ export const FEDERATED_HTTP_ROUTES = [
   { method: "GET", path: "/projects/:projectId/workspaces" },
   {
     method: "POST",
-    path: "/plugin-backends/:pluginId/projects/:projectId/workspaces/:workspaceId/:operation",
+    path: PLUGIN_BACKEND_REQUEST_ROUTE_PATH,
     timeoutMs: PLUGIN_BACKEND_FEDERATION_TIMEOUT_MS,
     bodyLimit: PLUGIN_BACKEND_REQUEST_BODY_MAX_BYTES,
     responseBodyLimit: PLUGIN_BACKEND_RESPONSE_BODY_MAX_BYTES,
+    propagateCancellation: true,
+  },
+  {
+    method: "POST",
+    path: PAIRED_PLUGIN_BACKEND_REQUEST_ROUTE_PATH,
+    timeoutMs: PLUGIN_BACKEND_FEDERATION_TIMEOUT_MS,
+    bodyLimit: PLUGIN_BACKEND_REQUEST_BODY_MAX_BYTES,
+    responseBodyLimit: PLUGIN_BACKEND_RESPONSE_BODY_MAX_BYTES,
+    propagateCancellation: true,
   },
   {
     method: "DELETE",
@@ -109,15 +121,6 @@ export const FEDERATED_HTTP_ROUTES = [
   { method: "GET", path: "/projects/trust" },
   { method: "GET", path: "/projects/:projectId/workspaces/:workspaceId/trust" },
   { method: "PUT", path: "/projects/:projectId/workspaces/:workspaceId/trust" },
-  { method: "GET", path: "/projects/:projectId/workspaces/:workspaceId/terminals" },
-  { method: "POST", path: "/projects/:projectId/workspaces/:workspaceId/terminals" },
-  { method: "DELETE", path: "/projects/:projectId/workspaces/:workspaceId/terminals" },
-  { method: "POST", path: "/projects/:projectId/workspaces/:workspaceId/terminals/:terminalId/continue" },
-  { method: "DELETE", path: "/projects/:projectId/workspaces/:workspaceId/terminals/:terminalId" },
-  { method: "POST", path: "/projects/:projectId/workspaces/:workspaceId/terminal-command-runs" },
-  { method: "GET", path: "/terminal-command-runs" },
-  { method: "GET", path: "/terminal-command-runs/:runId" },
-  { method: "POST", path: "/terminal-command-runs/:runId/cancel" },
   { method: "GET", path: "/status" },
   { method: "GET", path: "/notices" },
   { method: "POST", path: "/notices/dismiss" },
@@ -176,8 +179,8 @@ export const FEDERATED_HTTP_ROUTES = [
 ] as const satisfies readonly FederatedHttpRouteSpec[];
 
 export const FEDERATED_WEBSOCKET_ROUTES = [
+  PAIRED_PLUGIN_BACKEND_CHANNEL_ROUTE_PATH,
   "/events",
   "/sessions/events",
   "/sessions/:sessionId/events",
-  "/projects/:projectId/workspaces/:workspaceId/terminals/:terminalId/socket",
 ] as const satisfies readonly string[];
