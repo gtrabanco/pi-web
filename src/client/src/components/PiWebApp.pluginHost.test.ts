@@ -9,6 +9,7 @@ import type { WorkspaceFilesCapabilityV1, WorkspacePanelContext as PublicWorkspa
 import type { Machine, Project, SessionInfo, TerminalCommandRun, Workspace } from "../api";
 import { machineScopedBundledPluginId } from "../../../shared/machinePluginIds";
 import { initialAppState } from "../appState";
+import { AppShellController } from "../appShell/appShellController";
 import { loadCachedNewSessions, markCachedNewSessionInfo, rememberCachedNewSession } from "../cachedNewSessions";
 import { loadDraft, saveDraft } from "../promptDraftStorage";
 import { clearStagedAttachments, loadStagedAttachments, saveStagedAttachments, type PendingAttachment } from "../promptAttachmentStaging";
@@ -23,6 +24,22 @@ import { loadExternalPlugins, type PluginManifestEntry } from "../plugins/extern
 import { PluginRegistry } from "../plugins/registry";
 import type { PiWebPlugin, PiWebPluginRegistration, PiWebPluginRegistrationDeclaration, PluginCapability, PluginRuntimeContext, WorkspaceInvalidation, WorkspacePanelContext, WorkspacePanelNavigationV1 } from "../plugins/types";
 import { PiWebApp } from "./PiWebApp";
+import { html, render } from "lit";
+import { WorkspacePanel } from "./WorkspacePanel";
+
+async function expectWorkspaceContentError(app: PiWebApp, message: string): Promise<void> {
+  const host = document.createElement("div");
+  document.body.append(host);
+  render(callAppMethod(app, "renderWorkspacePanel"), host);
+  const panel = host.querySelector("workspace-panel");
+  if (!(panel instanceof WorkspacePanel)) throw new Error("Workspace panel was not rendered");
+  await panel.updateComplete;
+  expect(panel.shadowRoot?.textContent).toContain(message);
+  expect(panel.shadowRoot?.querySelector(".panel-content")).toBeNull();
+  expect(panel.shadowRoot?.querySelector("terminal-panel")).toBeNull();
+  render(null, host);
+  host.remove();
+}
 
 vi.mock("../plugins/external", () => ({ loadExternalPlugins: vi.fn() }));
 
@@ -49,11 +66,133 @@ afterEach(() => {
   vi.useRealTimers();
   vi.restoreAllMocks();
   vi.unstubAllGlobals();
+  document.body.replaceChildren();
   window.localStorage.clear();
   window.sessionStorage.clear();
 });
 
 describe("PiWebApp plugin host", () => {
+  it.each(["", "Requested plugin failed to load"])("keeps tool tabs usable without substituting content when a selected tool fails: %s", async (error) => {
+    const app = createApp();
+    setAppState(app, { ...initialAppState(), selectedProject: project, selectedWorkspace: workspace });
+    const substitute = vi.fn(() => html`<p>Wrong panel</p>`);
+    const panel = new WorkspacePanel();
+    panel.workspace = workspace;
+    panel.panelContext = workspacePanelContextFromApp(app);
+    panel.panels = [{ id: "test:other", localId: "other", pluginId: "test", title: "Other", render: substitute }];
+    panel.tool = "missing:panel";
+    panel.error = error;
+    const select = vi.fn((tool: typeof panel.tool) => {
+      panel.tool = tool;
+      panel.error = "";
+    });
+    panel.onSelectTool = select;
+    document.body.append(panel);
+    await panel.updateComplete;
+    expect(panel.shadowRoot?.textContent).toContain(error || "Workspace panel unavailable: missing:panel");
+    expect(substitute).not.toHaveBeenCalled();
+    const tab = panel.shadowRoot?.querySelector("button");
+    expect(tab?.textContent).toContain("Other");
+    tab?.click();
+    await panel.updateComplete;
+    expect(select).toHaveBeenCalledWith("test:other");
+    expect(panel.shadowRoot?.querySelector(".panel-content")?.textContent).toContain("Wrong panel");
+  });
+
+  it.each(["tool=missing", "tool=missing&view=missing", "tool=missing%3Apanel"])("leaves no tab selected for an unavailable route and allows explicit recovery: %s", async (query) => {
+    const browser = installBrowserWindow(`http://localhost/app?project=project-1&workspace=workspace-1&${query}`);
+    const originalUrl = browser.url.href;
+    const app = new PiWebApp();
+    await markPluginLoadingReady(app);
+    await appPluginRegistry(app).register({ id: "files", plugin: pluginWithPanel("Files", vi.fn()) });
+    setAppState(app, {
+      ...initialAppState(),
+      selectedProject: project,
+      selectedWorkspace: workspace,
+      workspaces: [workspace],
+      workspaceTool: "files:workspace.panel",
+      mainView: "chat",
+    });
+    const host = document.createElement("div");
+    document.body.append(host);
+    await callAsyncAppMethod(app, "restoreRoute", false);
+    render(app.render(), host);
+    const panel = host.querySelector("workspace-panel");
+    if (!(panel instanceof WorkspacePanel)) throw new Error("Workspace panel was not rendered");
+    await panel.updateComplete;
+    expect(panel.shadowRoot?.textContent).toContain("Workspace panel unavailable: missing");
+    expect(host.textContent).not.toContain("Workspace panel unavailable");
+    expect(appState(app).browserErrors).toEqual({});
+    expect(panel.shadowRoot?.querySelector(".panel-content")).toBeNull();
+    expect(panel.shadowRoot?.querySelector(".selected, [aria-pressed=true]")).toBeNull();
+    expect(browser.url.href).toBe(originalUrl);
+    expect(browser.pushed).toEqual([]);
+    expect(browser.replaced).toEqual([]);
+
+    const files = panel.shadowRoot?.querySelector<HTMLButtonElement>('button[aria-label="Files"]');
+    expect(files).not.toBeNull();
+    expect(files?.disabled).toBe(false);
+    files?.click();
+    render(app.render(), host);
+    await panel.updateComplete;
+    expect(host.textContent).not.toContain("Workspace panel unavailable");
+    expect(appState(app).browserErrors).toEqual({});
+    expect(panel.shadowRoot?.textContent).not.toContain("Workspace panel unavailable");
+    expect(panel.shadowRoot?.querySelector(".panel-content")?.textContent).toContain("Files");
+    expect(files?.getAttribute("aria-pressed")).toBe("true");
+    expect(files?.classList.contains("selected")).toBe(true);
+    expect(browser.url.searchParams.get("tool")).toBe("files:workspace.panel");
+    expect(browser.url.searchParams.get("view")).toBe("files:workspace.panel");
+    render(null, host);
+    host.remove();
+  });
+
+  it.each([1440, 1180, 761, 760, 390])("separates an unknown view from a valid tool at width %i", async (width) => {
+    const browser = installBrowserWindow("http://localhost/app?project=project-1&workspace=workspace-1&tool=files%3Aworkspace.panel&view=schat");
+    const originalUrl = browser.url.href;
+    const app = new PiWebApp();
+    const shell: unknown = Reflect.get(app, "appShell");
+    if (!(shell instanceof AppShellController)) throw new Error("App shell unavailable");
+    shell.isMobileNavigationLayout = width <= 760;
+    await markPluginLoadingReady(app);
+    await appPluginRegistry(app).register({ id: "files", plugin: pluginWithPanel("Files", vi.fn()) });
+    setAppState(app, {
+      ...initialAppState(), selectedProject: project, selectedWorkspace: workspace,
+      workspaces: [workspace], workspaceTool: TERMINAL_PANEL_ID, mainView: TERMINAL_PANEL_ID,
+    });
+    await callAsyncAppMethod(app, "restoreRouteFor", {
+      projectId: project.id, workspaceId: workspace.id, tool: "files:workspace.panel", view: "schat",
+    }, true, { contributionQuery: {} });
+    expect(callAppMethod(app, "effectiveMainView")).toBe(width <= 760 ? "navigation" : "chat");
+    expect(appState(app).workspaceTool).toBe("files:workspace.panel");
+    expect(callAppMethod(app, "visibleBrowserErrorsForCurrentRoute", appState(app))).toEqual([]);
+    const host = document.createElement("div");
+    document.body.append(host);
+    // Render without connecting the app, avoiding startup network effects.
+    render(app.render(), host);
+    const panel = host.querySelector("workspace-panel");
+    if (!(panel instanceof WorkspacePanel)) throw new Error("Workspace panel was not rendered");
+    await panel.updateComplete;
+    const warning = host.querySelector('.error.warning[role="alert"]');
+    expect(warning?.querySelector('.error-text')?.textContent).toBe("Unknown view: schat");
+    expect(warning?.querySelector("button")).toBeNull();
+    expect(appState(app).browserErrors).toEqual({});
+    expect(host.querySelector(".shell")?.classList.contains(width <= 760 ? "navigation-view" : "chat-view")).toBe(true);
+    expect(panel.shadowRoot?.querySelector('button[aria-label="Files"]')?.getAttribute("aria-pressed")).toBe("true");
+    expect(panel.shadowRoot?.querySelector(".panel-content")?.textContent).toContain("Files");
+    expect(panel.error).toBe("");
+    expect(browser.url.href).toBe(originalUrl);
+    expect(browser.pushed).toEqual([]);
+    expect(browser.replaced).toEqual([]);
+
+    callAppMethod(app, "selectMainView", "chat");
+    render(app.render(), host);
+    expect(host.querySelector('.error.warning')).toBeNull();
+    expect(host.textContent).not.toContain("Unknown view:");
+    expect(appState(app).browserErrors).toEqual({});
+    render(null, host);
+  });
+
   it("commits a workspace view destination before applying the rendered selection", async () => {
     installBrowserWindow("http://localhost/app?project=project-1&workspace=workspace-1&tool=pi-web.terminal%3Aworkspace.terminal&view=chat");
     const app = new PiWebApp();
@@ -775,7 +914,7 @@ describe("PiWebApp plugin host", () => {
     expect(browser.url.searchParams.get("browser-only.workspace.panel--file")).toBe("new.ts");
   });
 
-  it("normalizes a missing project route while clearing its workspace surface", async () => {
+  it("preserves a missing project route while clearing its workspace surface", async () => {
     const browser = installBrowserWindow("http://localhost/app?project=missing-project&workspace=missing-workspace&view=chat&browser-only.workspace.panel--file=missing.ts");
     const app = new PiWebApp();
     setAppState(app, {
@@ -793,12 +932,16 @@ describe("PiWebApp plugin host", () => {
 
     expect(appState(app).selectedProject).toBeUndefined();
     expect(appState(app).selectedWorkspace).toBeUndefined();
-    expect(browser.url.searchParams.has("project")).toBe(false);
-    expect(browser.url.searchParams.has("workspace")).toBe(false);
-    expect(browser.url.searchParams.has("browser-only.workspace.panel--file")).toBe(false);
+    expect(browser.url.searchParams.get("project")).toBe("missing-project");
+    expect(browser.url.searchParams.get("workspace")).toBe("missing-workspace");
+    expect(browser.url.searchParams.get("browser-only.workspace.panel--file")).toBe("missing.ts");
+    expect(browser.replaced).toEqual([]);
+    expect(callAppMethod(app, "visibleBrowserErrorsForCurrentRoute", appState(app))).toEqual([
+      expect.objectContaining({ message: "Project not found: missing-project" }),
+    ]);
   });
 
-  it("normalizes a missing session route while retaining its workspace", async () => {
+  it("preserves a missing session route while retaining its workspace", async () => {
     const browser = installBrowserWindow("http://localhost/app?project=project-1&workspace=workspace-1&session=deleted-session&view=chat");
     const app = new PiWebApp();
     setAppState(app, {
@@ -827,8 +970,112 @@ describe("PiWebApp plugin host", () => {
 
     expect(browser.url.searchParams.get("project")).toBe(project.id);
     expect(browser.url.searchParams.get("workspace")).toBe(workspace.id);
-    expect(browser.url.searchParams.has("session")).toBe(false);
+    expect(browser.url.searchParams.get("session")).toBe("deleted-session");
+    expect(browser.replaced).toEqual([]);
     expect(appState(app).selectedSession).toBeUndefined();
+  });
+
+  it.each([
+    ["missing workspace", "Workspace not found: workspace-1"],
+    ["missing session", "Session not found: requested-session"],
+    ["workspace load failure", "workspaces offline"],
+    ["session list failure", "sessions offline"],
+  ])("preserves the complete requested URL for %s", async (scenario, message) => {
+    const browser = installBrowserWindow("http://localhost/app?project=project-1&workspace=workspace-1&session=requested-session&view=chat&files.workspace.files--file=keep.ts#anchor");
+    const destination = browser.url.href;
+    const app = new PiWebApp();
+    setAppState(app, { ...initialAppState(), projects: [project] });
+    await markPluginLoadingReady(app);
+    const controller: unknown = Reflect.get(app, "workspaces");
+    if (typeof controller !== "object" || controller === null) throw new Error("Missing workspace controller");
+    Reflect.set(controller, "api", {
+      workspaces: scenario === "workspace load failure"
+        ? vi.fn().mockRejectedValue(new Error(message))
+        : vi.fn().mockResolvedValue(scenario === "missing workspace" ? [] : [workspace]),
+      sessions: scenario === "session list failure"
+        ? vi.fn().mockRejectedValue(new Error(message))
+        : vi.fn().mockResolvedValue([{ id: "another-session", cwd: workspace.path, path: "/repo/another.jsonl", created: "now", modified: "now", messageCount: 0, firstMessage: "Not the requested session" } satisfies SessionInfo]),
+    });
+
+    await callAsyncAppMethod(app, "restoreRoute", false);
+
+    expect(browser.url.href).toBe(destination);
+    expect(browser.pushed).toEqual([]);
+    expect(browser.replaced).toEqual([]);
+    expect(appState(app).selectedSession).toBeUndefined();
+    expect(callAppMethod(app, "visibleBrowserErrorsForCurrentRoute", appState(app))).toEqual([
+      expect.objectContaining({ message: scenario.endsWith("failure") ? `Error: ${message}` : message }),
+    ]);
+    expect(callAppMethod(app, "sessionEmptyMessage")).toContain(message);
+    if (appState(app).selectedWorkspace === undefined) await expectWorkspaceContentError(app, message);
+  });
+
+  it("does not reuse retained notifications after leaving a missing session or requesting a different destination", async () => {
+    installBrowserWindow("http://localhost/app?project=project-1&workspace=workspace-1&session=missing-session&view=chat");
+    const app = new PiWebApp();
+    setAppState(app, { ...initialAppState(), projects: [project] });
+    await markPluginLoadingReady(app);
+    const controller: unknown = Reflect.get(app, "workspaces");
+    if (typeof controller !== "object" || controller === null) throw new Error("Missing workspace controller");
+    Reflect.set(controller, "api", {
+      workspaces: vi.fn().mockResolvedValue([workspace]),
+      sessions: vi.fn().mockResolvedValue([]),
+    });
+    await callAsyncAppMethod(app, "restoreRoute", false);
+    expect(callAppMethod(app, "sessionEmptyMessage")).toBe("Session not found: missing-session");
+    const retained = appState(app).browserErrors;
+
+    window.history.pushState({}, "", "?project=project-1&workspace=workspace-1&view=chat");
+    await callAsyncAppMethod(app, "restoreRoute", false);
+    expect(appState(app).browserErrors).toEqual(retained);
+    expect(callAppMethod(app, "sessionEmptyMessage")).toBe("Select or start a session.");
+    expect(callAppMethod(app, "workspaceContentError")).toBe("");
+
+    const scope = machineBrowserErrorScope("local");
+    setAppState(app, { ...appState(app), browserErrors: {
+      ...retained,
+      [browserErrorScopeKey(scope)]: { scope, message: "Unrelated machine action failed" },
+    } });
+    window.history.pushState({}, "", "?project=project-1&workspace=workspace-1&tool=missing%3Apanel&view=missing%3Apanel");
+    await callAsyncAppMethod(app, "restoreRoute", false);
+    await expectWorkspaceContentError(app, "Workspace panel unavailable: missing:panel");
+    expect(callAppMethod(app, "sessionEmptyMessage")).toBe("Select or start a session.");
+
+    window.history.pushState({}, "", "?project=removed-project&workspace=workspace-1&view=chat");
+    await callAsyncAppMethod(app, "restoreRoute", false);
+    expect(callAppMethod(app, "sessionEmptyMessage")).toBe("Project not found: removed-project");
+    await expectWorkspaceContentError(app, "Project not found: removed-project");
+  });
+
+  it.each(["missing machine", "machine load failure", "project load failure"])("preserves the bootstrap destination for %s", async (scenario) => {
+    const browser = installBrowserWindow(`http://localhost/app?${scenario === "project load failure" ? "" : "machine=removed-machine&"}project=project-1&workspace=workspace-1&session=requested-session&view=chat&files.workspace.files--file=keep.ts#anchor`);
+    const destination = browser.url.href;
+    const app = new PiWebApp();
+    await markPluginLoadingReady(app);
+    vi.stubGlobal("fetch", vi.fn((input: RequestInfo | URL) => {
+      const url = input instanceof Request ? input.url : String(input);
+      if (url.endsWith("api/machines")) {
+        if (scenario === "machine load failure") return Promise.reject(new Error("machines offline"));
+        return Promise.resolve(new Response(JSON.stringify({ machines: [{ id: "local", name: "Local", kind: "local", createdAt: "now", updatedAt: "now" }] }), { headers: { "content-type": "application/json" } }));
+      }
+      return Promise.reject(new Error("backend offline"));
+    }));
+    Reflect.set(app, "withChatScrollTransition", async (action: () => Promise<void>) => { await action(); });
+    Reflect.set(app, "refreshWorkspaceDeletionRuns", () => Promise.resolve());
+
+    await callAsyncAppMethod(app, "loadProjectsAndRestoreRoute");
+
+    expect(browser.url.href).toBe(destination);
+    expect(browser.pushed).toEqual([]);
+    expect(browser.replaced).toEqual([]);
+    expect(appState(app).selectedProject).toBeUndefined();
+    expect(callAppMethod(app, "visibleBrowserErrorsForCurrentRoute", appState(app))).toEqual(expect.arrayContaining([
+      expect.objectContaining({ message: scenario === "project load failure" ? "Error: backend offline" : scenario === "machine load failure" ? "Error: machines offline" : "Machine not found: removed-machine" }),
+    ]));
+    const expectedError = scenario === "project load failure" ? "backend offline" : scenario === "machine load failure" ? "machines offline" : "Machine not found";
+    await expectWorkspaceContentError(app, expectedError);
+    expect(callAppMethod(app, "sessionEmptyMessage")).toContain(expectedError);
+    if (scenario === "machine load failure") expect(appState(app).error).not.toContain("not found");
   });
 
   it("keeps an unavailable machine route explicit instead of resolving it locally", async () => {
@@ -1089,7 +1336,7 @@ describe("PiWebApp plugin host", () => {
 
     const machines: unknown = Reflect.get(app, "machines");
     if (typeof machines !== "object" || machines === null) throw new Error("PiWebApp machine controller was unavailable");
-    if (!Reflect.set(machines, "loadMachines", () => Promise.resolve())) throw new Error("Could not stub initial machine loading");
+    if (!Reflect.set(machines, "loadMachines", () => Promise.resolve(true))) throw new Error("Could not stub initial machine loading");
 
     const projects: unknown = Reflect.get(app, "projects");
     if (typeof projects !== "object" || projects === null) throw new Error("PiWebApp project controller was unavailable");
@@ -1276,7 +1523,7 @@ describe("PiWebApp plugin host", () => {
     expect(browser.replaced).toEqual([]);
   });
 
-  it("recovers an unresolved creation link to its workspace without starting or joining a session", async () => {
+  it("preserves an unresolved creation link without starting or joining a session", async () => {
     const browser = installBrowserWindow("http://localhost/app?project=project-1&workspace=workspace-1&session=creating:expired&view=chat");
     const app = new PiWebApp();
     setAppState(app, { ...initialAppState(), projects: [project] });
@@ -1286,7 +1533,8 @@ describe("PiWebApp plugin host", () => {
     await callAsyncAppMethod(app, "restoreRoute", false);
     expect(appState(app).selectedWorkspace?.id).toBe(workspace.id);
     expect(appState(app).selectedSession).toBeUndefined();
-    expect(browser.url.searchParams.has("session")).toBe(false);
+    expect(browser.url.searchParams.get("session")).toBe("creating:expired");
+    expect(browser.replaced).toEqual([]);
     expect(browser.pushed).toEqual([]);
     expect(start).not.toHaveBeenCalled();
     expect(select).not.toHaveBeenCalled();
@@ -1947,12 +2195,13 @@ describe("PiWebApp plugin host", () => {
     expect(appState(app)).toMatchObject({
       selectedMachine: { id: machineB.id },
       selectedWorkspace: { id: workspaceB.id },
-      workspaceTool: `${machineScopedBundledPluginId(machineB.id, "pi-web.terminal")}:workspace.terminal`,
-      mainView: `${machineScopedBundledPluginId(machineB.id, "pi-web.terminal")}:workspace.terminal`,
+      workspaceTool: "files:workspace.files",
+      mainView: "files:workspace.files",
     });
     expect(window.history.length).toBe(historyLength + 1);
     expect(browser.pushed).toHaveLength(1);
-    expect(browser.replaced).toHaveLength(2);
+    expect(browser.replaced).toHaveLength(1);
+    await expectWorkspaceContentError(app, "Workspace panel unavailable: files:workspace.files");
     expect([...browser.pushed, ...browser.replaced].every((href) => new URL(href).searchParams.get("machine") === machineB.id)).toBe(true);
     expect(browser.url.searchParams.get("files.workspace.files--file")).toBe("b.ts");
 
@@ -2119,7 +2368,7 @@ describe("PiWebApp plugin host", () => {
     expect(appState(app).mainView).toBe("chat");
   });
 
-  it("falls back to the first visible panel and keeps Chat available when a requested panel is unavailable", async () => {
+  it.each([1440, 1000, 760])("keeps a known unavailable panel destination without view fallback at width %i", async (width) => {
     const browser = installBrowserWindow("http://localhost/app?project=project-1&workspace=workspace-1&tool=core%3Aworkspace.files&view=core%3Aworkspace.files");
     const app = new PiWebApp();
     setAppState(app, {
@@ -2130,24 +2379,33 @@ describe("PiWebApp plugin host", () => {
       workspaceTool: "core:workspace.files",
       mainView: "core:workspace.files",
     });
+    const shell: unknown = Reflect.get(app, "appShell");
+    if (!(shell instanceof AppShellController)) throw new Error("App shell unavailable");
+    shell.isMobileNavigationLayout = width <= 760;
+    expect(callAppMethod(app, "effectiveMainView")).toBe("core:workspace.files");
+    expect(callAppMethod(app, "unknownRouteView")).toBeUndefined();
     expect(appPluginRegistry(app).getWorkspacePanels().some(({ id }) => id === "core:workspace.files")).toBe(false);
     await markPluginLoadingReady(app);
 
     await callAsyncAppMethod(app, "finishWorkspaceRouteRestore", { contributionQuery: {} }, {
       updateUrl: false,
       urlPublication: "current-url",
-      normalizeUnavailableRoute: false,
+      unavailableToolRoute: false,
       unavailablePanelViewRoute: false,
       requestedTool: "core:workspace.files",
       requestedView: "core:workspace.files",
     });
 
     expect(appState(app)).toMatchObject({
-      workspaceTool: TERMINAL_PANEL_ID,
-      mainView: TERMINAL_PANEL_ID,
+      workspaceTool: "core:workspace.files",
+      mainView: "core:workspace.files",
     });
-    expect(browser.url.searchParams.get("tool")).toBe(TERMINAL_PANEL_ID);
-    expect(browser.url.searchParams.get("view")).toBe(TERMINAL_PANEL_ID);
+    await expectWorkspaceContentError(app, "Workspace panel unavailable: core:workspace.files");
+    expect(browser.url.searchParams.get("tool")).toBe("core:workspace.files");
+    expect(browser.url.searchParams.get("view")).toBe("core:workspace.files");
+    expect(browser.replaced).toEqual([]);
+    expect(callAppMethod(app, "visibleBrowserErrorsForCurrentRoute", appState(app))).toEqual([]);
+    expect(appState(app).browserErrors).toEqual({});
     expect(mobileTabIds(app)).toEqual(["navigation", "chat", TERMINAL_PANEL_ID]);
 
     setAppState(app, {
@@ -2157,11 +2415,11 @@ describe("PiWebApp plugin host", () => {
     });
     callAppMethod(app, "reconcileWorkspacePanelSelection");
 
-    expect(appState(app).workspaceTool).toBe(TERMINAL_PANEL_ID);
+    expect(appState(app).workspaceTool).toBe("missing:workspace.panel");
     expect(appState(app).mainView).toBe("chat");
   });
 
-  it("replaces an unresolved panel deep link after plugin loading completes", async () => {
+  it("preserves an unresolved panel deep link after plugin loading completes", async () => {
     const browser = installBrowserWindow("http://localhost/app?project=project-1&workspace=workspace-1&tool=missing&view=missing");
     const app = new PiWebApp();
     setAppState(app, {
@@ -2182,16 +2440,16 @@ describe("PiWebApp plugin host", () => {
       tool: "missing",
       view: "missing",
     }, false, { contributionQuery: {} });
-    expect(appState(app)).toMatchObject({
-      workspaceTool: TERMINAL_PANEL_ID,
-      mainView: TERMINAL_PANEL_ID,
-    });
-    expect(browser.url.searchParams.get("tool")).toBe(TERMINAL_PANEL_ID);
-    expect(browser.url.searchParams.get("view")).toBe(TERMINAL_PANEL_ID);
-    expect(browser.replaced.length).toBeGreaterThan(0);
+    expect(callAppMethod(app, "effectiveMainView")).toBe("chat");
+    await expectWorkspaceContentError(app, "Workspace panel unavailable: missing");
+    expect(browser.url.searchParams.get("tool")).toBe("missing");
+    expect(browser.url.searchParams.get("view")).toBe("missing");
+    expect(browser.replaced).toEqual([]);
+    expect(callAppMethod(app, "visibleBrowserErrorsForCurrentRoute", appState(app))).toEqual([]);
+    expect(appState(app).browserErrors).toEqual({});
   });
 
-  it("normalizes an unavailable panel on popstate without replacing the adjacent history entries", async () => {
+  it("preserves an unavailable panel on popstate and the adjacent history entries", async () => {
     const browser = installBrowserWindow("http://localhost/app?project=project-1&workspace=workspace-1&tool=core%3Aworkspace.terminal&view=core%3Aworkspace.terminal&step=origin");
     const app = new PiWebApp();
     setAppState(app, {
@@ -2212,17 +2470,22 @@ describe("PiWebApp plugin host", () => {
     await vi.waitFor(() => { expect(browser.url.searchParams.get("step")).toBe("unavailable"); });
     callAppMethod(app, "onPopState");
     await vi.waitFor(() => {
-      expect(browser.url.searchParams.get("tool")).toBe(TERMINAL_PANEL_ID);
-      expect(browser.url.searchParams.get("view")).toBe(TERMINAL_PANEL_ID);
+      expect(appState(app).mainView).toBe("missing:workspace.panel");
     });
 
-    expect(browser.replaced).toHaveLength(1);
+    await expectWorkspaceContentError(app, "Workspace panel unavailable: missing:workspace.panel");
+    expect(appState(app).browserErrors).toEqual({});
+    expect(appState(app).mainView).toBe("missing:workspace.panel");
+    expect(browser.pushed).toHaveLength(0);
+    expect(browser.url.searchParams.get("tool")).toBe("missing:workspace.panel");
+    expect(browser.url.searchParams.get("view")).toBe("missing:workspace.panel");
+    expect(browser.replaced).toHaveLength(0);
     expect(browser.url.searchParams.get("step")).toBe("unavailable");
     window.history.back();
     await vi.waitFor(() => { expect(browser.url.searchParams.get("step")).toBe("origin"); });
   });
 
-  it("keeps the generic shell and host files available when the Files module fails to load", async () => {
+  it.each([false, true])("preserves actual Files loading failures without overwriting unrelated notifications (existing: %s)", async (existingNotification) => {
     const browser = installBrowserWindow("http://localhost/app?project=project-1&workspace=workspace-1&tool=core%3Aworkspace.files&view=core%3Aworkspace.files");
     const app = new PiWebApp();
     stubPluginLoadRendering(app);
@@ -2256,17 +2519,36 @@ describe("PiWebApp plugin host", () => {
     await ensureGatewayPluginsLoaded(app);
 
     expect(appState(app)).toMatchObject({
-      workspaceTool: TERMINAL_PANEL_ID,
-      mainView: TERMINAL_PANEL_ID,
+      workspaceTool: "core:workspace.files",
+      mainView: "core:workspace.files",
     });
-    expect(browser.url.searchParams.get("tool")).toBe(TERMINAL_PANEL_ID);
-    expect(browser.url.searchParams.get("view")).toBe(TERMINAL_PANEL_ID);
+    const scope = workspaceBrowserErrorScope("local", project.id, workspace.id);
+    const key = browserErrorScopeKey(scope);
+    if (existingNotification) {
+      setAppState(app, { ...appState(app), browserErrors: { [key]: { scope, message: "Unrelated operation failed" } } });
+    }
+    await callAsyncAppMethod(app, "finishWorkspaceRouteRestore", { contributionQuery: {} }, {
+      updateUrl: false, urlPublication: "current-url",
+      unavailableToolRoute: false, unavailablePanelViewRoute: false,
+      requestedTool: "core:workspace.files", requestedView: "core:workspace.files",
+    });
+    await expectWorkspaceContentError(app, "Files module unavailable");
+    const expectedErrors = {
+      [key]: { scope, message: existingNotification ? "Unrelated operation failed" : "Files module unavailable" },
+    };
+    expect(appState(app).browserErrors).toEqual(expectedErrors);
+    expect(browser.url.searchParams.get("tool")).toBe("core:workspace.files");
+    expect(browser.url.searchParams.get("view")).toBe("core:workspace.files");
+    expect(browser.replaced).toEqual([]);
     expect(mobileTabIds(app)).toEqual(["navigation", "chat", TERMINAL_PANEL_ID]);
     expect(workspacePanelContextFromApp(app).files.capabilityVersion).toBe(1);
     expect(warning).toHaveBeenCalledWith(
       "Failed to load PI WEB plugin files (./files/plugin.js)",
       failure,
     );
+    callAppMethod(app, "openWorkspaceTool", TERMINAL_PANEL_ID);
+    expect(callAppMethod(app, "workspaceContentError")).toBe("");
+    expect(appState(app).browserErrors).toEqual(expectedErrors);
   });
 
   it("does not let a stale plugin refresh replace a newer view URL", async () => {
@@ -2351,9 +2633,9 @@ describe("PiWebApp plugin host", () => {
       expect(warning).toHaveBeenCalled();
       expect(displayedError(app)).toContain(machine === undefined ? "module unavailable" : "plugin lifecycle capability");
       if (navigation === "current") {
-        expect(appState(app).mainView).toBe("chat");
-        expect(browser.url.searchParams.get("view")).toBe("chat");
-        expect(browser.url.href).not.toBe(destinationUrl);
+        expect(appState(app).mainView).toBe(TERMINAL_PANEL_ID);
+        await expectWorkspaceContentError(app, machine === undefined ? "module unavailable" : "plugin lifecycle capability");
+        expect(browser.url.href).toBe(destinationUrl);
       } else {
         expect(browser.url.href).toBe(destinationUrl);
         expect(appState(app)).toMatchObject(selectedSurface);
