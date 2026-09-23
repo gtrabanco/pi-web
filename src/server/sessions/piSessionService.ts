@@ -1121,7 +1121,7 @@ export interface PiSessionServiceDependencies {
    * Called when unread state changed, so the machine status projection can
    * recompute. The unread catalog itself stays the authority for unread detail.
    */
-  onUnreadChanged?: () => void;
+  onUnreadChanged?: (hasNewCompletion: boolean) => void;
   /**
    * Lets session startup report that provider model lists are refreshing while
    * a session is being constructed. Omit to report the startup phase alone.
@@ -1217,7 +1217,7 @@ export class PiSessionService implements SessionRouteService {
   private readonly catalogRefreshStatus: CatalogRefreshStatus | undefined;
   private readonly config: Pick<PiWebConfigService, "read"> | undefined;
   private readonly unreadPublicationRetryInitialMs: number;
-  private readonly onUnreadChanged: (() => void) | undefined;
+  private readonly onUnreadChanged: ((hasNewCompletion: boolean) => void) | undefined;
   private readonly pendingUnreadMutations: SessionUnreadMutation[] = [];
   private unreadPublication: Promise<void> | undefined;
   private unreadPublicationFailure: unknown;
@@ -1310,6 +1310,10 @@ export class PiSessionService implements SessionRouteService {
 
   notificationCatalog(): SessionNotificationCatalogSnapshot {
     return this.notificationStore.catalogSnapshot();
+  }
+
+  async reconcileUnreadWorkspaces(cwds: Iterable<string>): Promise<void> {
+    await this.publishUnreadMutations(this.unreadStore.reconcileWorkspaces(cwds));
   }
 
   async unreadCatalog(): Promise<SessionUnreadCatalogSnapshot> {
@@ -3914,7 +3918,7 @@ export class PiSessionService implements SessionRouteService {
     // The store applied the mutations already, so the status projection is told
     // now rather than after the durable flush: it reads in-memory unread state
     // and must not lag behind the rows the browser is about to see.
-    if (mutations.length > 0) this.onUnreadChanged?.();
+    if (mutations.length > 0) this.onUnreadChanged?.(mutations.some(({ event }) => event.unread !== null));
     this.enqueueUnreadMutations(mutations);
     this.unreadPublicationFlushRequested = true;
     if (this.unreadPublication === undefined && this.unreadPublicationRetryTimer !== undefined) {
@@ -4027,6 +4031,15 @@ export class PiSessionService implements SessionRouteService {
       this.events.publish(session.sessionId, toClientEvent(event, session.thinkingLevel));
       this.publishActivityForEvent(session, event);
       const eventType = getString(event, "type");
+      // Queued messages can reach the model after an ask opened, even though
+      // there was no ask to dismiss when the user originally submitted them.
+      if (eventType === "message_start" && isRecord(event) && getString(event["message"], "role") === "user") {
+        void this.voidOpenAskForUserMessage(session).catch((error: unknown) => {
+          const message = error instanceof Error ? error.message : String(error);
+          this.publishActivity(session, "error", "error", message);
+          this.events.publish(session.sessionId, { type: "session.error", message });
+        });
+      }
       if (eventType === "agent_end") this.abortRunScopedExtensionDialogs(session.sessionId);
       if (eventType === "compaction_end") this.scheduleCompactionQueueDrain(session.sessionId);
       if (eventType === "agent_start" || eventType === "agent_end") this.scheduleCompactionQueueDrain(session.sessionId);
