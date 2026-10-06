@@ -79,6 +79,11 @@ describe("sessionNameGenerator", () => {
       .toBe("Relay handoff-check leg 2");
   });
 
+  it.each([".", ""])("accepts same-line context after a relay handoff with punctuation %j", (punctuation) => {
+    expect(deterministicSessionName(`Relay "victorialogs-only" leg 1 begins now${punctuation} The human explicitly approved and authorized dispatch against the revised final packet.\n\nWork under the Relay method.`))
+      .toBe("Relay victorialogs-only leg 1");
+  });
+
   it.each(["R1a", "G-D1-L09", "phase-2", "R1-a"])("supports structured relay leg identifiers (%s)", (legIdentifier) => {
     expect(deterministicSessionName(`Relay "handoff-check" leg ${legIdentifier} begins now.`))
       .toBe(`Relay handoff-check leg ${legIdentifier}`);
@@ -89,9 +94,11 @@ describe("sessionNameGenerator", () => {
       .toBe("Relay very-long-relay-name-that-would-otherwise-push leg 42");
   });
 
-  it("does not build deterministic names for non-canonical relay prompts", () => {
-    expect(deterministicSessionName('You are continuing Relay "handoff-check" under the Relay method.'))
-      .toBeUndefined();
+  it.each([
+    'You are continuing Relay "handoff-check" under the Relay method.',
+    'Relay "handoff-check" leg 2 begins nowadays.',
+  ])("does not build deterministic names for non-canonical relay prompts (%s)", (prompt) => {
+    expect(deterministicSessionName(prompt)).toBeUndefined();
   });
 
   it("builds a concise fallback from the first request", () => {
