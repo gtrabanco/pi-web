@@ -2577,7 +2577,7 @@ export class PiSessionService implements SessionRouteService {
     );
   }
 
-  private browserTranscriptMessage(session: PiAgentSession, message: unknown): unknown {
+  private browserTranscriptMessage<T>(session: PiAgentSession, message: T): T {
     return projectTranscriptMarkdown(message, session.extensionRunner.getMarkdownTransformers(), (error, transformerIndex) => {
       this.logger.info({ err: error, sessionId: session.sessionId, transformerIndex }, "Transcript Markdown transformer failed");
     });
@@ -4713,6 +4713,7 @@ export class PiSessionService implements SessionRouteService {
       this.events.publish(session.sessionId, clientEvent, { id: session.sessionId, cwd: session.sessionManager.getCwd() });
       if ((eventType === "message_end" && getString(message, "role") === "assistant") || eventType === "agent_end") {
         this.assistantStreamIds.delete(session);
+      }
       }
       this.publishActivityForEvent(session, event);
       if (eventType === "message_start" && getString(message, "role") === "user") this.suggestedInputs.delete(session.sessionId);
