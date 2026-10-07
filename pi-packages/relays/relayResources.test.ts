@@ -1,13 +1,15 @@
 import { readFile } from "node:fs/promises";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 
 const promptNames = ["relay", "relay-worktree"] as const;
 const skillNames = ["relay", "relay-runner"] as const;
 
+const repoRoot = resolve(__dirname, "..", "..");
+
 /**
  * Guards the shipped layout of the Relay Pi package resources: Pi loads
- * `prompts/` and `skills/` from installed packages by convention, so a renamed
+ * `prompts/` from installed packages by convention, so a renamed
  * or malformed file would silently drop the feature.
  */
 describe("Relay Pi package resources", () => {
@@ -42,28 +44,21 @@ describe("Relay Pi package resources", () => {
   });
 
   it.each(skillNames)("ships the %s skill with matching name and description frontmatter", async (name) => {
-    const content = await readFile(join(__dirname, "skills", name, "SKILL.md"), "utf8");
+    const content = await readFile(resolve(repoRoot, "skills", name, "SKILL.md"), "utf8");
     const frontmatter = frontmatterOf(content);
 
     expect(frontmatter).toContain(`name: ${name}`);
     expect(frontmatter).toContain("description:");
   });
 
-  it.each(skillNames)("keeps the shipped %s skill identical to its canonical skill", async (name) => {
-    const canonical = await readFile(join(__dirname, "..", "..", "skills", name, "SKILL.md"), "utf8");
-    const shipped = await readFile(join(__dirname, "skills", name, "SKILL.md"), "utf8");
-
-    expect(shipped).toBe(canonical);
-  });
-
   it("keeps the base Relay method tool agnostic", async () => {
-    const content = await readFile(join(__dirname, "..", "..", "skills", "relay", "SKILL.md"), "utf8");
+    const content = await readFile(resolve(repoRoot, "skills", "relay", "SKILL.md"), "utf8");
 
     expect(content).not.toMatch(/\bspawn_session\b|\.pi-web|\bGit\b|\bPi\b|charter\.md|operations\.md|status\.md|log\.md/u);
   });
 
   it("leaves skill selection to dispatch and handoff prompts", async () => {
-    const content = await readFile(join(__dirname, "..", "..", "skills", "relay-runner", "SKILL.md"), "utf8");
+    const content = await readFile(resolve(repoRoot, "skills", "relay-runner", "SKILL.md"), "utf8");
     const handoffStart = content.indexOf("Use this handoff shape");
 
     expect(handoffStart).toBeGreaterThan(0);
@@ -72,8 +67,8 @@ describe("Relay Pi package resources", () => {
   });
 
   it("ends operational work at handoff and completes every profile gate", async () => {
-    const base = await readFile(join(__dirname, "..", "..", "skills", "relay", "SKILL.md"), "utf8");
-    const runner = await readFile(join(__dirname, "..", "..", "skills", "relay-runner", "SKILL.md"), "utf8");
+    const base = await readFile(resolve(repoRoot, "skills", "relay", "SKILL.md"), "utf8");
+    const runner = await readFile(resolve(repoRoot, "skills", "relay-runner", "SKILL.md"), "utf8");
 
     expect(base).toContain("final operational act");
     expect(base).toContain("A user-facing summary may follow");
@@ -84,7 +79,7 @@ describe("Relay Pi package resources", () => {
   });
 
   it("inherits the runner model unless model selection was instructed", async () => {
-    const runner = await readFile(join(__dirname, "..", "..", "skills", "relay-runner", "SKILL.md"), "utf8");
+    const runner = await readFile(resolve(repoRoot, "skills", "relay-runner", "SKILL.md"), "utf8");
 
     expect(runner).toContain("Keep every Relay handoff on the current runner's model by omitting the `model` argument");
     expect(runner).toContain("unless instructed to use a specific model or to choose an appropriate one");
@@ -93,7 +88,7 @@ describe("Relay Pi package resources", () => {
   });
 
   it("keeps the Relay route adaptive instead of pre-planned", async () => {
-    const content = await readFile(join(__dirname, "..", "..", "skills", "relay-runner", "SKILL.md"), "utf8");
+    const content = await readFile(resolve(repoRoot, "skills", "relay-runner", "SKILL.md"), "utf8");
 
     expect(content).toContain("Adaptive legs without an upfront plan");
     expect(content).toContain("select only the first bounded leg");
@@ -105,7 +100,7 @@ describe("Relay Pi package resources", () => {
   });
 
   it("keeps runner charters focused on goals and scope edges", async () => {
-    const content = await readFile(join(__dirname, "..", "..", "skills", "relay-runner", "SKILL.md"), "utf8");
+    const content = await readFile(resolve(repoRoot, "skills", "relay-runner", "SKILL.md"), "utf8");
     const charterStart = content.indexOf("**`charter.md` — goal and edges.**");
     const operationsStart = content.indexOf("**`operations.md` — runner bindings.**");
 
@@ -119,7 +114,7 @@ describe("Relay Pi package resources", () => {
   });
 
   it("keeps review evidence-based and makes a third attempt exceptional", async () => {
-    const content = await readFile(join(__dirname, "..", "..", "skills", "relay-runner", "SKILL.md"), "utf8");
+    const content = await readFile(resolve(repoRoot, "skills", "relay-runner", "SKILL.md"), "utf8");
 
     expect(content).toContain("two normal whole-work review attempts");
     expect(content).toContain("A third review is an exceptional contingency");
