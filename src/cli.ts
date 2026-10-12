@@ -1000,6 +1000,22 @@ export function managedServiceProbeEnvironment(
   return { ok: true, value: callerEnvironment };
 }
 
+/**
+ * The units whose `PI_WEB_CONFIG` actually governs this installation. A split setup that mixes
+ * production `sessiond`/`web` units with the development UI unit is supported (see AGENTS.md):
+ * the API and session daemon resolve config for themselves, while the development UI unit only
+ * proxies to the API and never reads `PI_WEB_CONFIG` on its own. Keeping the UI unit out of the
+ * selection prevents it from vetoing a config the running API already uses.
+ */
+function configGoverningServiceIds(ids: ReadonlySet<ServiceId>): Set<ServiceId> {
+  if (ids.has("web") && ids.has("uiDev")) {
+    const scoped = new Set<ServiceId>(ids);
+    scoped.delete("uiDev");
+    return scoped;
+  }
+  return new Set(ids);
+}
+
 function installedServiceProbeEnvironment(
   backend: ServiceBackend,
   ids: ReadonlySet<ServiceId>,
@@ -1019,7 +1035,10 @@ function installedServiceProbeEnvironment(
   }
   if (ids.size === 0) return { ok: true, value: callerEnvironment };
 
-  const definitions = inspectDefinitions(backend, [...ids], purpose);
+  const governing = configGoverningServiceIds(ids);
+  if (governing.size === 0) return { ok: true, value: callerEnvironment };
+
+  const definitions = inspectDefinitions(backend, [...governing], purpose);
   if (!definitions.ok) return definitions;
   return managedServiceProbeEnvironment(backend, definitions.value, callerEnvironment);
 }
@@ -1163,6 +1182,12 @@ export function nativeServiceDoctorTarget(
 ): NativeServiceDoctorTarget {
   const mode = inferInstalledNativeServiceMode(ids);
   if (mode === "ambiguous") {
+    // A production install plus the development UI unit is a supported split setup; production
+    // owns the API and session daemon, and the UI unit only proxies to them, so diagnose it as
+    // production rather than refusing to identify a mode.
+    if (ids.has("web") && ids.has("uiDev")) {
+      return installedProductionDoctorTarget(backend, new Set<ServiceId>([...productionNativeServiceIds]), environment, installedDefinitions);
+    }
     return {
       kind: "inspection-failure",
       message: `installed service IDs do not identify one mode (${[...ids].join(", ") || "none"}).`,
@@ -1186,17 +1211,46 @@ export function nativeServiceDoctorTarget(
     };
   }
 
+  if (mode === "production") {
+    return installedProductionDoctorTarget(backend, new Set<ServiceId>(productionNativeServiceIds), environment, installedDefinitions);
+  }
+
   const definitions = installedDefinitions === undefined
     ? installedServiceDefinitions(backend, expectedIds, "doctor")
-    : { ok: true as const, value: installedDefinitions };
+    : { ok: true as const, value: selectServiceDefinitions(installedDefinitions, expectedIds) };
   if (!definitions.ok) return { kind: "inspection-failure", message: definitions.message };
 
-  if (mode === "development") {
-    const inspection = inspectInstalledDevelopmentServiceInput(backend, definitions.value);
-    return inspection.ok
-      ? { kind: "installed-development", input: inspection.value }
-      : { kind: "inspection-failure", message: inspection.message };
-  }
+  const inspection = inspectInstalledDevelopmentServiceInput(backend, definitions.value);
+  return inspection.ok
+    ? { kind: "installed-development", input: inspection.value }
+    : { kind: "inspection-failure", message: inspection.message };
+}
+
+/** Restrict a caller-supplied definition set to the IDs a mode is being diagnosed from. */
+function selectServiceDefinitions(
+  definitions: readonly InstalledNativeServiceDefinition[],
+  ids: readonly ServiceId[],
+): InstalledNativeServiceDefinition[] {
+  const selected = new Set<ServiceId>(ids);
+  return definitions.filter((definition) => selected.has(definition.id));
+}
+
+/**
+ * Inspect the production `sessiond`/`web` units and describe the prospective plan they justify.
+ * Shared by a pure production install and the supported production-plus-development-UI split,
+ * which both diagnose from the same production units.
+ */
+function installedProductionDoctorTarget(
+  backend: ServiceBackend,
+  ids: ReadonlySet<ServiceId>,
+  environment: NodeJS.ProcessEnv,
+  installedDefinitions: readonly InstalledNativeServiceDefinition[] | undefined,
+): NativeServiceDoctorTarget {
+  const expectedIds = [...ids];
+  const definitions = installedDefinitions === undefined
+    ? installedServiceDefinitions(backend, expectedIds, "doctor")
+    : { ok: true as const, value: selectServiceDefinitions(installedDefinitions, expectedIds) };
+  if (!definitions.ok) return { kind: "inspection-failure", message: definitions.message };
 
   const inspection = inspectInstalledProductionServiceContext(backend, definitions.value);
   return inspection.ok

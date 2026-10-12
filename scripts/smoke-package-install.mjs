@@ -313,10 +313,12 @@ async function smokeBunWebServer(dataRoot, installRoot, environment) {
     await waitForJson(`${base}/api/pi-web/version`, web, 45_000);
     // The web/API may come up before the session daemon has created its unix
     // socket, so poll the status endpoint until the daemon is reachable and
-    // both components report the runtime.
+    // both components report the runtime. The status endpoint caches its answer
+    // for a TTL, and an early read can be cached while the daemon is still
+    // starting, so poll the forced-refresh path to observe the daemon once it is up.
     await waitFor(
       async () => {
-        const response = await fetch(`${base}/api/pi-web/status`);
+        const response = await fetch(`${base}/api/pi-web/status?refresh=1`);
         if (!response.ok) return false;
         const status = await response.json();
         return ["web", "sessiond"].every((component) => status.components?.[component]?.runtime === "bun");

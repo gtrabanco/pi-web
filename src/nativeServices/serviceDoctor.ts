@@ -403,9 +403,6 @@ function parseConsistentDefinitions(
     if (!recordsEqual(definition.environment, first.environment)) {
       return { ok: false, message: "Installed service definitions use different environments." };
     }
-    if (definition.workingDirectory !== first.workingDirectory) {
-      return { ok: false, message: "Installed service definitions use different working directories." };
-    }
   }
   return { ok: true, value: parsed };
 }
