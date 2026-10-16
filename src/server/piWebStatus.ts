@@ -7,9 +7,9 @@ import { dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import { DefaultPackageManager, SettingsManager, VERSION as PI_CODING_AGENT_VERSION } from "../piSdk.js";
 import type { ActiveAgentProfileDescriptor, PiWebCapability, PiWebComponentStatus, PiWebDeprecatedAgentInput, PiWebInstallationInfo, PiWebReleaseStatus, PiWebRuntimeComponent, PiWebRuntimeResponse, PiWebServiceComponent, PiWebStatusMessage, PiWebStatusResponse, PiWebVersionResponse } from "../shared/apiTypes.js";
+import { bunTerminalCapability, piWebRuntimeKind, runtimeEngineVersion } from "../shared/piWebRuntime.js";
 import { effectivePiWebCapabilities, WEB_RUNTIME_CAPABILITIES } from "../shared/capabilities.js";
 import { piWebDockerCommand } from "../docker/piWebDockerCommandPlan.js";
-import { piWebRuntimeKind } from "../shared/piWebRuntime.js";
 import { parseSessiondRuntimeComponent } from "../shared/piWebStatusParsing.js";
 import { SessionDaemonClient } from "../sessiond/sessionDaemonClient.js";
 import { isHostAbsoluteAgentDir, loadPiWebConfig, PI_CODING_AGENT_DIR_ENV, type LoadedPiWebConfig } from "../config.js";
@@ -83,12 +83,6 @@ export interface PiWebStatusOptions {
 
 const latestReleaseLookupCache = createPiWebReleaseLookupCache(fetchLatestNpmVersion);
 const runtimePackageInfo = readPackageInfoSync();
-
-function runtimeEngineVersion(): string {
-  const bun: unknown = Reflect.get(globalThis, "Bun");
-  if (typeof bun === "object" && bun !== null && typeof Reflect.get(bun, "version") === "string") return String(Reflect.get(bun, "version"));
-  return process.version;
-}
 
 export function getPiWebRuntimeComponent(component: PiWebServiceComponent, capabilities: readonly PiWebCapability[] = [], deprecatedAgentInputs: readonly PiWebDeprecatedAgentInput[] = []): PiWebRuntimeComponent {
   return {

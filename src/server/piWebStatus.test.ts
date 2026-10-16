@@ -3,7 +3,8 @@ import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { VERSION as PI_CODING_AGENT_VERSION } from "../piSdk.js";
+import { piWebRuntimeKind } from "../shared/piWebRuntime.js";
+import { VERSION as PI_CODING_AGENT_VERSION } from "@earendil-works/pi-coding-agent";
 import { comparePackageVersions, getPiWebRuntime, getPiWebStatus, getPiWebVersionStatus, updateCommandFor } from "./piWebStatus.js";
 import { SessionDaemonClient } from "../sessiond/sessionDaemonClient.js";
 import type { PiWebRuntimeComponent } from "../shared/apiTypes.js";
@@ -62,9 +63,9 @@ describe("PI WEB status", () => {
       getPiWebRuntime(daemon),
     ]);
 
-    expect(status.components.web.runtime).toBe("node");
+    expect(status.components.web.runtime).toBe(piWebRuntimeKind());
     expect(status.components.sessiond.runtime).toBe("bun");
-    expect(runtime.components.web.runtime).toBe("node");
+    expect(runtime.components.web.runtime).toBe(piWebRuntimeKind());
     expect(runtime.components.sessiond.runtime).toBe("bun");
   });
 
@@ -82,13 +83,13 @@ describe("PI WEB status", () => {
     expect(status.components.sessiond).not.toHaveProperty("runtime");
     expect(runtime.components.sessiond.available).toBe(false);
     expect(runtime.components.sessiond).not.toHaveProperty("runtime");
-    expect(status.components.web.runtime).toBe("node");
+    expect(status.components.web.runtime).toBe(piWebRuntimeKind());
   });
 
   it("omits the session daemon runtime when the daemon does not report one", async () => {
     const status = await getPiWebVersionStatus(daemonWithRuntime(runningSessiondRuntime()));
 
-    expect(status.components.web.runtime).toBe("node");
+    expect(status.components.web.runtime).toBe(piWebRuntimeKind());
     expect(status.components.sessiond).not.toHaveProperty("runtime");
   });
 
