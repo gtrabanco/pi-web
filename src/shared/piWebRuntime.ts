@@ -6,16 +6,31 @@
  * capability gate (`bun -e 'typeof Bun.Terminal === "function"'`) all key off the same checks.
  * Detecting them separately per caller is how doctor and the backend could disagree (SPEC D4/F5).
  */
-import type { PiWebRuntime } from "./pluginApiTypes.js";
-
-export type { PiWebRuntime };
+export type PiWebRuntime = "bun" | "node";
 
 export function piWebRuntimeKind(): PiWebRuntime {
-  const env = process.env["PI_WEB_RUNTIME"];
+  const env = process.env?.["PI_WEB_RUNTIME"];
   if (env === "bun") return "bun";
-  // PI_WEB_RUNTIME=node or unset (auto/undefined) → Node is the default.
+
+  if (typeof process !== "undefined" && process.versions?.node) return "node";
+  if (typeof globalThis !== "undefined" && (globalThis as Record<string, unknown>)?.["Bun"]) return "bun";
+
   return "node";
 }
+
+/**
+ * Get the engine version string for the detected runtime.
+ *
+ * Bun reports its version on the global `Bun` object; Node on `process.version`.
+ */
+function runtimeEngineVersion(): string {
+  const bun: unknown = Reflect.get(globalThis, "Bun");
+  if (typeof bun === "object" && bun !== null && typeof Reflect.get(bun, "version") === "string") return String(Reflect.get(bun, "version"));
+  if (typeof process !== "undefined" && process.version) return process.version;
+  return "";
+}
+
+export { runtimeEngineVersion };
 
 /**
  * Bun serves terminals natively only with `Bun.Terminal`; older builds expose `Bun.spawn` alone.
