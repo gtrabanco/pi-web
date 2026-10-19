@@ -7,11 +7,13 @@ import { createContentRenderingCapability } from "../src/client/src/formatting/c
 import { ContentRenderingBoundary } from "../src/client/src/components/ContentRenderingBoundary.ts";
 import { ContentRendererHost } from "../src/client/src/components/ContentRendererHost.ts";
 import { settleDeferredContent, useDeferredContent } from "../src/client/src/formatting/deferredContent.testSupport.ts";
-
 useDeferredContent();
 
 // Consume the built, production-Lit plugin alongside the development-Lit host.
 // Source-only component tests share one runtime and cannot catch this failure.
+// Content rendering is visibility-deferred; happy-dom cannot establish viewport
+// geometry, so drive the scheduler explicitly like the source-only tests do.
+useDeferredContent();
 afterEach(() => {
   document.body.replaceChildren();
   localStorage.clear();
@@ -43,6 +45,7 @@ it("loads saved Markdown Preview through the bundled Files plugin without crossi
   await viewer.updateComplete;
   const boundary = viewer.shadowRoot.querySelector("pi-web-content-rendering-boundary");
   expect(boundary).toBeInstanceOf(ContentRenderingBoundary);
+  await boundary.updateComplete;
   await settleDeferredContent(boundary);
   const preview = viewer.shadowRoot.querySelector(".markdown-preview");
   expect(preview.querySelector("h1").textContent).toBe("Notes");
