@@ -17,7 +17,7 @@ Use npm for dependency work in this repository (`package-lock.json` is the commi
 
 Running PI WEB on Bun is a supported *runtime*, which is separate from dependency management: build the package with npm, then start it with Bun.
 
-Pi extension packages used while developing in this workspace (`pi-subagents`, `pi-effort`, `@hicaru/pi-rlm`) are `devDependencies`, not `dependencies`, so they never reach the published package, and `knip.json` lists them under `ignoreDependencies` because Pi loads them at runtime rather than the source importing them.
+Pi extension packages used while developing in this workspace (such as `pi-subagents`, `pi-effort`, and `@hicaru/pi-rlm`) are installed locally for the developer's own runtime. Keep them out of `package.json` and `knip.json`: they are not dependencies of this project, they ship no source the repository imports, and their peer ranges can conflict with the `pi-*@1.x` versions this project requires, which breaks `npm ci`.
 
 ## Human-facing communication
 

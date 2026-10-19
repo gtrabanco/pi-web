@@ -28,3 +28,6 @@ dist/
 # package.json without updating package-lock.json.
 bun.lock
 bun.lockb
+
+# Local Serena code-navigation state (personal tooling configuration).
+.serena/
