@@ -28,8 +28,5 @@
   "ignoreBinaries": [
     "mkfifo"
   ],
-  "ignoreDependencies": [
-    "node-pty"
-  ],
   "ignoreExportsUsedInFile": true
 }
