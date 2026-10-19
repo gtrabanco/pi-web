@@ -9,11 +9,12 @@
 export type PiWebRuntime = "bun" | "node";
 
 export function piWebRuntimeKind(): PiWebRuntime {
-  const env = process.env?.["PI_WEB_RUNTIME"];
+  const env: unknown = typeof process !== "undefined" ? Reflect.get(process.env, "PI_WEB_RUNTIME") : undefined;
   if (env === "bun") return "bun";
 
-  if (typeof process !== "undefined" && process.versions?.node) return "node";
-  if (typeof globalThis !== "undefined" && (globalThis as Record<string, unknown>)?.["Bun"]) return "bun";
+  const nodeVersion: unknown = typeof process !== "undefined" ? Reflect.get(process.versions, "node") : undefined;
+  if (typeof nodeVersion === "string") return "node";
+  if (typeof Reflect.get(globalThis, "Bun") !== "undefined") return "bun";
 
   return "node";
 }
