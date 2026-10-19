@@ -205,7 +205,7 @@ describe("reconcileAutoInstallablePiPackages", () => {
         packageRoot: PACKAGE_ROOT,
       });
 
-      expect(install).toHaveBeenCalledWith(join(PACKAGE_ROOT, "dist", "pi-packages", "relays"));
+      expect(install).toHaveBeenCalledWith(join(PACKAGE_ROOT, "relays-autoinstall"));
       expect(install).toHaveBeenCalledWith(join(PACKAGE_ROOT, "dist", "pi-packages", "workflows"));
     });
 
@@ -222,7 +222,7 @@ describe("reconcileAutoInstallablePiPackages", () => {
         packageRoot: PACKAGE_ROOT,
       });
 
-      expect(install).not.toHaveBeenCalledWith(join(PACKAGE_ROOT, "dist", "pi-packages", "relays"));
+      expect(install).not.toHaveBeenCalledWith(join(PACKAGE_ROOT, "relays-autoinstall"));
       expect(install).toHaveBeenCalledExactlyOnceWith(join(PACKAGE_ROOT, "dist", "pi-packages", "workflows"));
     });
   });
