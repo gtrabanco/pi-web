@@ -12,9 +12,11 @@ export function piWebRuntimeKind(): PiWebRuntime {
   const env: unknown = typeof process !== "undefined" ? Reflect.get(process.env, "PI_WEB_RUNTIME") : undefined;
   if (env === "bun") return "bun";
 
-  const nodeVersion: unknown = typeof process !== "undefined" ? Reflect.get(process.versions, "node") : undefined;
-  if (typeof nodeVersion === "string") return "node";
-  if (typeof Reflect.get(globalThis, "Bun") !== "undefined") return "bun";
+  // Bun reports `process.versions.node` for Node compatibility, so asking about node first makes a
+  // Bun process look like Node.js. `process.versions.bun` is set by Bun alone, which keeps the
+  // answer about the process itself rather than about a `Bun` global someone may have defined.
+  const bunVersion: unknown = typeof process !== "undefined" ? Reflect.get(process.versions, "bun") : undefined;
+  if (typeof bunVersion === "string") return "bun";
 
   return "node";
 }
