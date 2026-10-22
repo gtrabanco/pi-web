@@ -354,6 +354,14 @@ async function propagatePluginChannelClose(
       await closePluginBackendChannelWebSocket(target, 1011, `Plugin backend channel clean-close drain failed: ${bridgeErrorMessage(error)}`);
       return;
     }
+  } else {
+    try {
+      await sender.drain(PLUGIN_BACKEND_CHANNEL_TEARDOWN_TIMEOUT_MS);
+    } catch {
+      // A short drain guarantees error envelopes reach the peer; a timeout
+      // is harmless because the physical teardown below terminates any
+      // frames that could not be delivered in time.
+    }
   }
   await closePluginBackendChannelWebSocket(target, closeCode, reason);
 }
