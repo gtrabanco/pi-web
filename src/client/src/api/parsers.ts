@@ -3,7 +3,7 @@ import { parseMachineStatusSnapshot, type MachineStatusSnapshot, type MachineSta
 import type { JsonValue, PiPackageInfo, PiPackageInstallableSuggestion, PiPackageMutationAction, PiPackageMutationResponse, PiPackageScope, PiPackagesResponse, SessionActivity, SessionStartupProgressEvent, SessionTreeForkResult, SessionTreeNavigateResult, SessionTreeNode, SessionTreeNodeKind, SessionTreeSnapshot, WorkspaceProviderDiagnostic, WorkspaceProviderDiagnosticCode, WorkspaceProviderResolution, WorkspaceProviderResolutionStatus, WorkspaceProviderTier } from "../../../shared/apiTypes";
 
 import { parseKnownPiWebCapabilities } from "../../../shared/capabilities";
-import { parseDeprecatedAgentInputs } from "../../../shared/piWebStatusParsing";
+import { parseDeprecatedAgentInputs, parsePiWebRuntimeFields } from "../../../shared/piWebStatusParsing";
 import { PI_WEB_PLUGIN_RECOVERY_COMMANDS, pluginDisableRecoveryCommand } from "../../../shared/pluginRecoveryCommands";
 import { parseServerNoticeScope } from "../../../shared/serverNoticeContract";
 import { requireDefaultThemePreference } from "../../../shared/themePreference";
@@ -1864,6 +1864,7 @@ function parsePiWebRuntimeComponent(value: unknown): PiWebRuntimeComponent {
     component: parsePiWebServiceComponent(record["component"]),
     label: requireString(record, "label"),
     ...optionalField("runtimeVersion", optionalString(record, "runtimeVersion")),
+    ...parsePiWebRuntimeFields(record),
     ...optionalField("piVersion", optionalString(record, "piVersion")),
     available: requireBoolean(record, "available"),
     capabilities: parsePiWebCapabilities(record["capabilities"]),
@@ -1877,6 +1878,7 @@ function parsePiWebComponentStatus(value: unknown): PiWebComponentStatus {
     component: parsePiWebServiceComponent(record["component"]),
     label: requireString(record, "label"),
     ...optionalField("runtimeVersion", optionalString(record, "runtimeVersion")),
+    ...parsePiWebRuntimeFields(record),
     ...optionalField("installedVersion", optionalString(record, "installedVersion")),
     ...optionalField("piVersion", optionalString(record, "piVersion")),
     stale: requireBoolean(record, "stale"),

@@ -298,6 +298,67 @@ describe("API parsers", () => {
     expect(() => parsePiPackagesResponse({ packages: [], installableKnownPackages: [{ id: "@acme/known", label: "Known", description: "desc" }] })).toThrow("Expected string field: source");
   });
 
+  it("carries the runtime each component reports through status, runtime, and machine runtime parsing", () => {
+    // The Info panel renders "unknown runtime" unless the parsed component keeps the fields the
+    // server already sends; dropping them here is invisible to the API and only shows up as a
+    // wrong label in the UI, so each entry point is asserted separately.
+    const status = parsePiWebStatusResponse({
+      packageName: "@jmfederico/pi-web",
+      generatedAt: "now",
+      components: {
+        web: { component: "web", label: "Web/UI", available: true, stale: false, runtime: "bun", runtimeEngine: "1.4.4" },
+        sessiond: { component: "sessiond", label: "Session daemon", available: true, stale: false, runtime: "node", runtimeEngine: "v24.19.0" },
+      },
+      release: { packageName: "@jmfederico/pi-web", updateAvailable: false },
+      commands: {},
+      messages: [],
+    });
+    expect(status.components.web).toMatchObject({ runtime: "bun", runtimeEngine: "1.4.4" });
+    expect(status.components.sessiond).toMatchObject({ runtime: "node", runtimeEngine: "v24.19.0" });
+
+    const runtime = parsePiWebRuntimeResponse({
+      packageName: "@jmfederico/pi-web",
+      generatedAt: "now",
+      components: {
+        web: { component: "web", label: "Web/UI", available: true, capabilities: [], runtime: "bun", runtimeEngine: "1.4.4" },
+        sessiond: { component: "sessiond", label: "Session daemon", available: true, capabilities: [], runtime: "node", runtimeEngine: "v24.19.0" },
+      },
+      capabilities: [],
+    });
+    expect(runtime.components.web).toMatchObject({ runtime: "bun", runtimeEngine: "1.4.4" });
+    expect(runtime.components.sessiond).toMatchObject({ runtime: "node", runtimeEngine: "v24.19.0" });
+
+    const machine = parseMachineRuntime({
+      machineId: "remote a",
+      ok: true,
+      checkedAt: "now",
+      components: {
+        web: { component: "web", label: "Web/UI", available: true, capabilities: [], runtime: "bun", runtimeEngine: "1.4.4" },
+        sessiond: { component: "sessiond", label: "Session daemon", available: true, capabilities: [], runtime: "bun", runtimeEngine: "1.4.4" },
+      },
+    });
+    expect(machine.components?.web).toMatchObject({ runtime: "bun", runtimeEngine: "1.4.4" });
+    expect(machine.components?.sessiond).toMatchObject({ runtime: "bun", runtimeEngine: "1.4.4" });
+  });
+
+  it("drops an unstated or unknown runtime instead of inventing one", () => {
+    const component = { component: "web", label: "Web/UI", available: true, stale: false };
+    const response = {
+      packageName: "@jmfederico/pi-web",
+      generatedAt: "now",
+      release: { packageName: "@jmfederico/pi-web", updateAvailable: false },
+      commands: {},
+      messages: [],
+    };
+
+    const silent = parsePiWebStatusResponse({ ...response, components: { web: component, sessiond: { ...component, component: "sessiond" } } });
+    expect(silent.components.web).not.toHaveProperty("runtime");
+    expect(silent.components.web).not.toHaveProperty("runtimeEngine");
+
+    const unknown = parsePiWebStatusResponse({ ...response, components: { web: { ...component, runtime: "deno" }, sessiond: { ...component, component: "sessiond" } } });
+    expect(unknown.components.web).not.toHaveProperty("runtime");
+  });
+
   it("parses Docker PI WEB installation metadata", () => {
     const response = {
       packageName: "@jmfederico/pi-web",
