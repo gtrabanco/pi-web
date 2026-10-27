@@ -58,6 +58,23 @@ it("keeps conversational roles available to assistive technology without repeate
   expect(headers[1]?.querySelector(".label")).toBeNull();
   expect(headers[2]?.querySelector(".label")?.textContent).toBe("system");
   expect(view.shadowRoot?.querySelectorAll('button[aria-label="Message information"]')).toHaveLength(3);
+
+  // These hooks, unlike the remaining transcript DOM, are the supported theme contract.
+  const bubbles = [...view.renderRoot.querySelectorAll<HTMLElement>(".chat-message")];
+  expect(bubbles.map((bubble) => bubble.dataset["speaker"])).toEqual(["user", "assistant"]);
+  for (const bubble of bubbles) {
+    const content = bubble.querySelector(":scope > .chat-message-content");
+    expect(content).not.toBeNull();
+    expect(content?.querySelector(":scope > .chat-message-header")).not.toBeNull();
+    expect(content?.querySelector(":scope > .chat-message-body")).not.toBeNull();
+    expect(content?.nextElementSibling).toBe(bubble.querySelector(":scope > .chat-message-meta"));
+  }
+  expect(view.renderRoot.querySelector(".system[data-speaker]")).toBeNull();
+
+  view.messages = [{ ...message, role: "user" }];
+  await view.updateComplete;
+  expect(view.renderRoot.querySelectorAll(".chat-message")).toHaveLength(1);
+  expect(view.renderRoot.querySelector(".chat-message")?.getAttribute("data-speaker")).toBe("user");
 });
 
 it("shows only the metadata region controlled by the selected message's Info button", async () => {

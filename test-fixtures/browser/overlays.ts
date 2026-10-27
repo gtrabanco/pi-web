@@ -2,11 +2,16 @@ import { html, render } from "lit";
 import { api, type Machine } from "../../src/client/src/api";
 import { ConversationLayout } from "../../src/client/src/components/ConversationLayout";
 import { ChatView } from "../../src/client/src/components/ChatView";
+import { ContentRendererHost } from "../../src/client/src/components/ContentRendererHost";
 import { PromptEditor } from "../../src/client/src/components/PromptEditor";
 import { MachineSwitcher } from "../../src/client/src/components/MachineSwitcher";
 import { ModalSurface } from "../../src/client/src/components/ModalSurface";
 import { MessageActionsMenu } from "../../src/client/src/components/chat/MessageActionsMenu";
 import { uiButtonStyles, uiToolbarStyles } from "../../src/client/src/components/ui/controlStyles";
+import { PluginRegistry } from "../../src/client/src/plugins/registry";
+import { themePackPlugin } from "../../src/client/src/plugins/themes";
+import { pluginStyles } from "../../src/client/src/plugins/styles";
+import { applyPiWebTheme } from "../../src/client/src/theme";
 
 api.commands = () => Promise.resolve([{ name: "tree", source: "builtin" }]);
 api.files = () => Promise.resolve([{ path: "README.md", kind: "tracked" }]);
@@ -22,6 +27,10 @@ style.textContent = `
   .modal-content { display: flex; flex-direction: column; gap: 12px; padding: 20px; }
 `;
 document.head.append(style);
+
+const themeRegistry = new PluginRegistry();
+await themeRegistry.register({ id: "themes", plugin: themePackPlugin });
+pluginStyles.registerRoot(document);
 
 const machine = (id: string, kind: Machine["kind"]): Machine => ({ id, name: id, kind, createdAt: "2026-10-21T00:00:00Z", updatedAt: "2026-10-21T00:00:00Z" });
 function switcher(): MachineSwitcher {
@@ -105,7 +114,7 @@ await Promise.all([layout.updateComplete, editor.updateComplete, clippedSwitcher
 
 declare global {
   interface Window {
-    overlayFixture: { complete: () => Promise<void>; openModal: () => void; openPluginModal: () => void; hideConversation: () => void };
+    overlayFixture: { complete: () => Promise<void>; openModal: () => void; openPluginModal: () => void; hideConversation: () => void; mountRenderer: () => Promise<void>; applyTheme: (id: string) => Promise<void> };
   }
 }
 window.overlayFixture = {
@@ -118,6 +127,22 @@ window.overlayFixture = {
     await Promise.resolve();
     await editor.updateComplete;
     await editor.updateComplete;
+  },
+  applyTheme: async (id) => {
+    const theme = themeRegistry.getThemes().find((theme) => theme.id === id);
+    if (!theme) throw new Error(`Missing fixture theme: ${id}`);
+    applyPiWebTheme(theme);
+    await pluginStyles.setContributions(theme.stylesheets ?? []);
+  },
+  mountRenderer: async () => {
+    const renderer = new ContentRendererHost();
+    renderer.id = "theme-renderer";
+    renderer.text = "const retries = 3;";
+    renderer.choices = [{ id: "highlighted", label: "Highlighted", renderer: {
+      id: "highlighted", renderMode: "automatic", render: () => html`<code>Highlighted configuration</code>`,
+    } }];
+    document.body.append(renderer);
+    await renderer.updateComplete;
   },
   openModal,
   openPluginModal,

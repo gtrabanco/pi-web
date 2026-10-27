@@ -502,7 +502,7 @@ The current browser and server contracts are both **API v5**. Browser v4 and ser
 
 ### Host-provided UI styles
 
-**Styling is experimental.** Shared classes, theme properties, visual design, and layout may change between releases. There is no stable styling contract yet; test custom styling when upgrading PI WEB.
+**Styling is mostly experimental.** The [initial theme styling contract](theme-styling-contract.md) supports specific conversation and choice hooks. Other shared classes, theme properties, visual design, and layout may change between releases; test custom styling when upgrading PI WEB.
 
 Plugins can reuse the host's button, select, toolbar, tab, and file/tree-row styles without receiving CSS text or creating stylesheet elements. Request `{ pluginId: "pi-web", id: "stylesheet-integration", version: 1 }`, resolve it in `start`, and opt each participating shadow root into the single shared UI bundle. See [integrating plugin components](#integrating-plugin-components) for the complete capability setup.
 
@@ -555,7 +555,7 @@ Stylesheet integration works with supported browser APIs v4 and v5. Its capabili
 
 ### CSS files and shadow roots
 
-Contribute CSS files to customize the document and participating host or plugin shadow roots. This builds on the shared UI patterns above and inherited `--pi-*` custom properties; it does not require a separate option for each styling choice. Internal host classes, component names, and markup are **not stable selectors**: you may target them, but test your CSS when upgrading PI WEB. CSS changes presentation, not behavior or component structure.
+Contribute CSS files to customize the document and participating host or plugin shadow roots. This builds on the shared UI patterns above and inherited `--pi-*` custom properties; it does not require a separate option for each styling choice. Only the hooks listed in the [theme styling contract](theme-styling-contract.md) are supported selectors. Other internal host classes, component names, and markup are **not stable selectors**: you may target them, but test your CSS when upgrading PI WEB. CSS changes presentation, not behavior or component structure.
 
 With browser API v5, add `stylesheets` to the object returned by `activate().contributions`:
 
@@ -709,7 +709,7 @@ Listeners run synchronously after a changed active stylesheet list has been adop
 
 ### CSS-first themes
 
-Themes extend the built-in base theme: they can supply layout and control rules as well as palette properties. The base provides the default shell, responsive layout, shared controls, and transcript presentation in the `pi-web-base` cascade layer. Normal unlayered theme rules override those defaults. This separation is in place before a stable layout-selector contract; specialised local component/plugin styles are still being migrated. See [theme architecture](theme-architecture.md) for composition, examples, and current limits.
+Themes extend the built-in base theme: they can supply layout and control rules as well as palette properties. The base provides the default shell, responsive layout, shared controls, and transcript presentation in the `pi-web-base` cascade layer. Normal unlayered theme rules override those defaults. An initial supported contract covers conversation and choice hooks; specialised local component/plugin styles outside that boundary are still being migrated. See [theme architecture](theme-architecture.md) for composition, examples, and current limits.
 
 V5 themes declare CSS files, not TypeScript `tokens`. V4 themes retain their required `tokens: ThemeTokens` palette contract for compatibility; they cannot declare stylesheet contributions. Their original palette properties still style the current UI, while newer semantic properties use fallbacks. Switching away from a v4 theme clears its palette overrides. The built-in Dark, Light, and Classic palettes use this same contribution API. Put palette custom properties on `:root` so they inherit into shadow trees; use ordinary selectors in the same file when you need direct rules in participating roots.
 

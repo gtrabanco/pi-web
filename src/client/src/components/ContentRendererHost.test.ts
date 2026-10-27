@@ -95,6 +95,39 @@ it("shows every named view and Raw, and explicitly activates manual views while 
   expect(diagram.getAttribute("aria-pressed")).toBe("true");
 });
 
+it("scopes choice hooks to named views and Raw, keeping selection aligned with aria-pressed", async () => {
+  const host = hostWith([
+    { id: "first", label: "First", renderer: { id: "first", render: () => html`<b>First</b>` } },
+    { id: "second", label: "Second", renderer: { id: "second", render: () => html`<b>Second</b>` } },
+  ]);
+  document.body.append(host);
+  await settleDeferredContent(host);
+  const scope = host.renderRoot.querySelector('[data-ui-context="content-views"]');
+  expect(scope).toBe(host.renderRoot.querySelector(".views"));
+  expect(host.renderRoot.querySelectorAll("[data-ui-context]")).toHaveLength(1);
+  const choices = [...(scope?.querySelectorAll<HTMLButtonElement>("button") ?? [])];
+  expect(choices.map((choice) => choice.textContent.trim())).toEqual(["First", "Second", "Raw"]);
+  expect(choices.every((choice) => choice.matches(".ui-choice.ui-button.ui-button--compact"))).toBe(true);
+  const copy = button(host, "Copy source");
+  expect(scope?.contains(copy)).toBe(false);
+  expect(copy.matches(".ui-choice, [data-selected]")).toBe(false);
+
+  const expectSelection = (expected: string[]) => {
+    expect(choices.map((choice) => choice.getAttribute("data-selected"))).toEqual(expected);
+    expect(choices.map((choice) => choice.getAttribute("aria-pressed"))).toEqual(expected);
+  };
+  expectSelection(["false", "false", "true"]);
+  button(host, "First").click();
+  await settleDeferredContent(host);
+  expectSelection(["true", "false", "false"]);
+  button(host, "Second").click();
+  await settleDeferredContent(host);
+  expectSelection(["false", "true", "false"]);
+  button(host, "Raw").click();
+  await settleDeferredContent(host);
+  expectSelection(["false", "false", "true"]);
+});
+
 it("updates the automatic default until a view is explicitly selected", async () => {
   const first = { id: "first", label: "First", renderer: { id: "first", renderMode: "automatic" as const, render: () => html`<b>First</b>` } };
   const last = { id: "last", label: "Last", renderer: { id: "last", renderMode: "automatic" as const, render: () => html`<b>Last</b>` } };
