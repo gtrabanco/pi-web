@@ -28,6 +28,22 @@
   }
 }
 
+/* A short underline identifies the configured submit default without relying on hue. */
+:host(prompt-editor) .ui-composer-actions > [data-default] {
+  position: relative;
+}
+
+:host(prompt-editor) .ui-composer-actions > [data-default="true"]::after {
+  content: "";
+  position: absolute;
+  inset-inline-start: calc(50% - 5px);
+  inset-block-end: 4px;
+  inline-size: 10px;
+  block-size: 0;
+  border-block-end: 2px solid currentColor;
+  pointer-events: none;
+}
+
 :host(pi-web-content-renderer) [data-ui-context="content-views"] > .ui-choice,
 :host(autocomplete-menu) [data-ui-context="completions"] > .ui-choice {
   position: relative;

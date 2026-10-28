@@ -1,6 +1,6 @@
 # Theme styling contract
 
-Themes can change presentation without changing the meaning or behavior of controls. This contract covers conversation messages, renderer/completion choices, and project/workspace/session navigation rows. Other selectors, palette properties, and layout details remain experimental.
+Themes can change presentation without changing the meaning or behavior of controls. This contract covers conversation messages, renderer/completion choices, project/workspace/session navigation rows, and composer controls. Other selectors, palette properties, and layout details remain experimental.
 
 ## Compatibility and ownership
 
@@ -189,6 +189,65 @@ Base defaults for these surfaces, including session-specific row styles, use `pi
 ```
 
 These hooks do not freeze dimensions, indentation formulas, decoration glyphs, or the whole sidebar DOM. Machine rows, session-tree navigation, bulk toolbars, and popup contents remain outside this contract.
+
+## Composer controls
+
+Inside `:host(prompt-editor)`, the existing footer carries `[data-ui-context="composer"]`. This is the context for the toolbar and its attachment control, not a replacement editor component. Shared `.ui-button` controls keep native events, names, disabled states, and focus behavior.
+
+### Anatomy and purpose
+
+| Hook | Meaning |
+| --- | --- |
+| `.ui-composer-toolbar` | Existing toolbar belonging to the composer context |
+| `.ui-composer-settings` | Existing bounded model/thinking group inside the toolbar; absent until session status is available |
+| `.ui-composer-actions` | Existing direct toolbar child containing submission and Stop controls |
+| `[data-composer-action]` | Purpose of a native button; independent of its label, icon, and visual treatment |
+| `[data-ui-context="composer-attachment-sources"]` | Existing native attachment-source popover inside the composer context |
+
+Supported action values are `model`, `thinking`, `attach`, `send`, `queue`, `steer`, and `stop`. Attachment-source buttons use `attach-photos`, `attach-camera`, and `attach-files`.
+
+The same primary button changes its action from `send` to `queue` while requests are queued; this does not replace the button or move its focus. Steer is present only while offered by the existing session state, and is hidden during compaction. Stop remains a separate button. Themes should target purpose attributes instead of the older internal `.send-button`, `.select-model`, or icon classes.
+
+The attachment button remains in the input area, outside the toolbar. The attachment popover has a real `aria-controls`/`aria-expanded` association only on devices where that source menu is offered; direct file-picker behavior does not invent a DOM-expanded state. Model and thinking dialogs are owned outside the composer. Their buttons invoke the existing callbacks but do not claim an open/closed state the composer cannot know.
+
+### State
+
+| Attribute | Scope and meaning |
+| --- | --- |
+| `data-mode` | Composer context: `text` or `shell`, matching actual rendered input mode, including the existing staged-context override of shell mode |
+| `data-busy` | Composer context: `true` or `false` for client submission/upload or staged-context acknowledgement in progress, not agent streaming |
+| `data-disabled` | Composer context: `true` or `false` for owner-disabled message editing/submission; distinct from pending work |
+| `data-compacting` | Composer context: `true` or `false` for session compaction state; queueing can remain available |
+| `data-default-action` | Composer context: `send`, `queue`, `steer`, or `none`, the configured eligible submission target |
+| `data-default` | Submission/steering buttons: `true` or `false` for whether this is that configured target |
+
+None, invalid/multi-combination submission shortcuts, and blocked submission produce `data-default-action="none"` and no `data-default="true"` button. The existing colour highlight follows the same state. Desktop versus touch/narrow preferences use the same media query as keyboard routing; media changes refresh the hook without replacing the editor or stealing focus.
+
+The configured target does not promise that every keystroke submits a message: an empty draft may be a no-op, completions can consume Enter, and IME/browser processing remains editor-owned. Buttons are not toggles, so default state does not add `aria-pressed`.
+
+Inspect each native `:disabled` state rather than treating either root attribute as a disabled fieldset. For example, Stop may remain usable during client submission, model/thinking callbacks remain externally owned, and a pending submission may still allow editing the next draft. A parent-disabled composer is not falsely reported as busy.
+
+Submission/steering buttons reserve `::after` for an optional theme-owned decorative default cue. The base theme leaves it empty; Playground adds a short underline:
+
+```css
+:host(prompt-editor) .ui-composer-actions > [data-default] {
+  position: relative;
+}
+
+:host(prompt-editor) .ui-composer-actions > [data-default="true"]::after {
+  content: "";
+  position: absolute;
+  inset-inline-start: calc(50% - 5px);
+  inset-block-end: 4px;
+  inline-size: 10px;
+  border-block-end: 2px solid currentColor;
+  pointer-events: none;
+}
+```
+
+Keep focus distinct from the default cue. This boundary does not freeze CodeMirror internals, input sizing, draft storage, chip/attachment rendering, external dialog DOM, or the whole footer structure.
+
+**Known keyboard limitation:** CodeMirror's Android input path can normalize modified Enter to a newline before composer key handlers run. The toolbar contract does not replace that input path. If affected, use a different configured key combination or the submission button. Browser contract tests use a modified letter chord on all engines; existing component tests cover Enter routing independently.
 
 ## Accessibility and verification
 
