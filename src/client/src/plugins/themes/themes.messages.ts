@@ -21,4 +21,6 @@ export default {
   neutralPairDescription: message("Follow the system light/dark preference with neutral gray themes.", "Neutral light/dark theme pair description"),
   playgroundPairName: message("Playground", "Opt-in experimental light/dark theme pair display name"),
   playgroundPairDescription: message("Follow the system light/dark preference with opt-in experiments in contrast and subtle visual cues.", "Experimental theme pair description; does not imply accessibility certification"),
+  materialName: message("Material", "Material file icon theme display name; preserve upstream branding"),
+  materialDescription: message("Material icons for files, bundled for offline use.", "Built-in Material file icon theme description"),
 };

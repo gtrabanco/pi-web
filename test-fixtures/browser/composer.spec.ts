@@ -129,7 +129,7 @@ test("Playground decorates only the enabled default; popup and Stop availability
   expect(await send.evaluate(decoration)).toEqual({ content: '""', width: "10px", border: "2px" });
   expect(await send.boundingBox()).toEqual(before);
   const attach = root.locator('[data-composer-action="attach"]');
-  if (await page.evaluate(() => matchMedia("(pointer: coarse)").matches)) {
+  if (await page.evaluate(() => /Android/i.test(navigator.userAgent))) {
     await attach.click();
     await expect(attach).toHaveAttribute("aria-expanded", "true");
     const sources = root.locator('[data-ui-context="composer-attachment-sources"]');

@@ -208,7 +208,7 @@ Supported action values are `model`, `thinking`, `attach`, `send`, `queue`, `ste
 
 The same primary button changes its action from `send` to `queue` while requests are queued; this does not replace the button or move its focus. Steer is present only while offered by the existing session state, and is hidden during compaction. Stop remains a separate button. Themes should target purpose attributes instead of the older internal `.send-button`, `.select-model`, or icon classes.
 
-The attachment button remains in the input area, outside the toolbar. The attachment popover has a real `aria-controls`/`aria-expanded` association only on devices where that source menu is offered; direct file-picker behavior does not invent a DOM-expanded state. Model and thinking dialogs are owned outside the composer. Their buttons invoke the existing callbacks but do not claim an open/closed state the composer cannot know.
+The attachment button remains in the input area, outside the toolbar. The attachment popover has a real `aria-controls`/`aria-expanded` association only on Android, where that source menu is offered; other platforms use their native file chooser directly, irrespective of pointer type, without inventing a DOM-expanded state. Model and thinking dialogs are owned outside the composer. Their buttons invoke the existing callbacks but do not claim an open/closed state the composer cannot know.
 
 ### State
 

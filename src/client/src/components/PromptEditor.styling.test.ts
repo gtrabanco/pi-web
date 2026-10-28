@@ -225,8 +225,14 @@ describe("composer styling contract", () => {
     expect(editor.renderRoot.querySelector(".mode-hint")).toBeNull();
   });
 
-  it.each([false, true])("annotates existing attachment sources without inventing menu state (coarse=%s)", async (coarse) => {
+  it.each([
+    { android: false, coarse: false },
+    { android: false, coarse: true },
+    { android: true, coarse: false },
+    { android: true, coarse: true },
+  ])("annotates attachment sources for the platform, not pointer type (Android=$android, coarse=$coarse)", async ({ android, coarse }) => {
     stubPointer(coarse);
+    vi.spyOn(navigator, "userAgent", "get").mockReturnValue(android ? "Mozilla/5.0 (Linux; Android 14)" : "Unknown browser");
     const editor = await mount();
     const attach = action(editor, "attach");
     const panel = required(editor, ".attach-source-panel");
@@ -235,9 +241,9 @@ describe("composer styling contract", () => {
     expect(panel.parentElement).toBe(attach.parentElement);
     expect([...panel.querySelectorAll("button")]).toEqual([action(editor, "attach-photos"), action(editor, "attach-camera"), action(editor, "attach-files")]);
     for (const button of panel.querySelectorAll("button")) expect(button.classList.contains("ui-button")).toBe(true);
-    expect(attach.getAttribute("aria-controls")).toBe(coarse ? panel.id : null);
-    expect(attach.getAttribute("aria-expanded")).toBe(coarse ? "false" : null);
-    if (coarse) {
+    expect(attach.getAttribute("aria-controls")).toBe(android ? panel.id : null);
+    expect(attach.getAttribute("aria-expanded")).toBe(android ? "false" : null);
+    if (android) {
       attach.click();
       await editor.updateComplete;
       expect(attach.getAttribute("aria-expanded")).toBe("true");

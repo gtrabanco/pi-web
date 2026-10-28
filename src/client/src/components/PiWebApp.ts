@@ -51,6 +51,8 @@ import type { ApplicationPanelContext, MaintenanceTerminal, PluginNavigationPatc
 import { CLASSIC_THEME_ID, applyPiWebTheme, clearStoredThemePreference, configureThemePolicy, effectiveThemePreference, getThemePolicy, readStoredThemePreference, resolveThemePreference, writeStoredThemePreference, type ThemePreference, type ThemePreferenceResolution } from "../theme";
 import { corePlugin } from "../plugins/core";
 import { themePackPlugin } from "../plugins/themes";
+import { FileIconService, fileIconsCapabilityToken } from "../fileIconService";
+import { NO_FILE_ICONS, readStoredFileIconPreference, writeStoredFileIconPreference } from "../fileIconPreferences";
 import { pluginStyles, PluginStyleRuntime, stylesheetIntegrationCapability } from "../plugins/styles";
 import { loadExternalPlugins, type ExternalPluginLoadResult } from "../plugins/external";
 import { publicPluginSelection, publicPluginSession } from "../plugins/publicContext";
@@ -382,7 +384,10 @@ export class PiWebApp extends LitElement {
   private readonly stylesheetRuntime = new PluginStyleRuntime(pluginStyles, (error) => {
     console.error("Failed to apply plugin stylesheets", error);
   });
+  private readonly fileIcons = new FileIconService();
+  @state() private fileIconPreference: string | undefined = readStoredFileIconPreference();
   private readonly plugins = new PluginRegistry({
+    hostCapabilities: [{ capability: fileIconsCapabilityToken, value: this.fileIcons.capability }],
     onPromptChipsChanged: () => { this.requestUpdate(); },
     isContributionEnabled: (pluginId, machineId) => this.pluginContributionAvailable(pluginId, machineId),
     getSelection: () => publicPluginSelection(this.state),
@@ -470,6 +475,7 @@ export class PiWebApp extends LitElement {
     this.committedChatIdentity = selectedChatIdentity(this.state);
     this.syncSelectedSessionReadState();
     this.plugins.notifySelectionChanged();
+    this.syncFileIcons();
     this.syncPluginStylesheets();
     const chatVisible = this.isChatVisible();
     if (chatVisible) {
@@ -2160,7 +2166,10 @@ export class PiWebApp extends LitElement {
     archiveSession: (session: SessionInfo) => this.sessions.archiveSession(session),
     archiveSessionWithDescendants: (session: SessionInfo) => this.sessions.archiveSessionWithDescendants(session),
     archiveSessions: (sessions: SessionInfo[]) => this.sessions.archiveSessions(sessions),
-    restoreSession: (session: SessionInfo) => this.selectNavigationItem("sessions", "chat", async () => { await this.sessions.restoreSession(session); return undefined; }),
+    restoreSession: (session: SessionInfo) => this.selectNavigationItem("sessions", "chat", async () => {
+      const restored = await this.sessions.restoreSession(session);
+      return restored === undefined ? false : this.selectSessionFromNavigation(restored);
+    }),
     deleteCachedNewSession: (session: SessionInfo) => this.sessions.deleteCachedNewSession(session),
     deleteArchivedSession: (session: SessionInfo) => this.sessions.deleteArchivedSessions([session]),
     deleteArchivedSessions: (sessions: SessionInfo[]) => this.sessions.deleteArchivedSessions(sessions),
@@ -3631,7 +3640,19 @@ export class PiWebApp extends LitElement {
     ]);
   }
 
+  private selectFileIconTheme(id: string | undefined): void {
+    if (id !== undefined && id !== NO_FILE_ICONS && !this.plugins.getFileIconThemes().some((theme) => theme.id === id)) return;
+    this.fileIconPreference = id;
+    writeStoredFileIconPreference(id);
+    this.syncFileIcons();
+  }
+
+  private syncFileIcons(): void {
+    this.fileIcons.update(this.plugins.getFileIconThemes(), this.fileIconPreference, this.resolveCurrentThemePreference().activeTheme?.colorScheme ?? "dark");
+  }
+
   private applyPreferredTheme(persist: boolean): void {
+    this.syncFileIcons();
     this.syncPluginStylesheets();
     const theme = this.resolveCurrentThemePreference().activeTheme;
     if (theme === undefined) return;
@@ -4219,7 +4240,7 @@ export class PiWebApp extends LitElement {
         ${state.projectDialogOpen ? html`<project-dialog .machineId=${selectedMachineId(state)} .onSubmit=${(path: string, create: boolean, trust: ProjectTrustChoice | undefined) => this.projects.addProject(path, create, trust)} .onCancel=${() => { this.setState({ projectDialogOpen: false }); }}></project-dialog>` : null}
         ${state.machineDialogOpen ? html`<machine-dialog .machine=${this.machineNameEditTarget} .error=${state.error} .onSubmit=${(input: MachineDialogSubmit) => this.submitMachineDialog(input)} .onCancel=${() => { this.setState({ machineDialogOpen: false }); }}></machine-dialog>` : null}
         ${this.sessionCleanupDialog !== undefined ? html`<session-cleanup-dialog .preview=${this.sessionCleanupDialog.preview} .previewRequest=${this.sessionCleanupDialog.previewRequest} .result=${this.sessionCleanupDialog.result} .loading=${this.sessionCleanupDialog.loading === true} .running=${this.sessionCleanupDialog.running === true} .error=${typeof this.sessionCleanupDialog.error === "string" ? this.sessionCleanupDialog.error : ""} .errorMessage=${typeof this.sessionCleanupDialog.error === "function" ? this.sessionCleanupDialog.error : undefined} .onPreview=${(request: SessionCleanupRequest) => { void this.previewSessionCleanup(request); }} .onRun=${(request: SessionCleanupRequest) => { void this.runSessionCleanup(request); }} .onClose=${() => { this.closeSessionCleanupDialog(); }}></session-cleanup-dialog>` : null}
-        ${this.settingsSection !== undefined ? html`<settings-dialog .section=${this.settingsSection} .mcpContext=${state.selectedSession !== undefined && state.selectedSession.archived !== true ? { session: { id: state.selectedSession.id, cwd: state.selectedSession.cwd }, machineId: selectedMachineId(state) } : undefined} .onMcpAuth=${(mode: "login" | "logout", serverName: string, context: { session: { id: string; cwd: string }; machineId: string }) => { this.closeSettings(); void this.auth.openMcpAuth(mode, serverName, context); }} .machine=${state.selectedMachine} .machineRuntime=${this.selectedMachineRuntime()} .machines=${state.machines} .machineStatuses=${state.machineStatuses} .machineRuntimes=${state.machineRuntimes} .actions=${this.getDefaultActions()} .themes=${this.plugins.getThemes()} .themePreference=${this.themePreference} .activeThemeId=${this.activeThemeId} .hasLocalThemeOverride=${this.localThemePreference !== undefined} .onUseLocalTheme=${(preference: ThemePreference) => { this.pickTheme(preference); }} .onUseDefaultTheme=${() => { this.useDefaultTheme(); }} .onNavigate=${(section: SettingsSection) => { this.navigateSettings(section); }} .onClose=${() => { this.closeSettings(); }} .onMachineConfigSaved=${(machineId: string) => { void this.machines.refreshMachineIdentity(machineId); }} .onConfigSaved=${(config: PiWebConfigValues) => { this.applyClientConfig(config); }} .onRefreshMachineRuntime=${async (machineId: string) => { await this.machines.refreshMachineRuntime(machineId); }}></settings-dialog>` : null}
+        ${this.settingsSection !== undefined ? html`<settings-dialog .section=${this.settingsSection} .mcpContext=${state.selectedSession !== undefined && state.selectedSession.archived !== true ? { session: { id: state.selectedSession.id, cwd: state.selectedSession.cwd }, machineId: selectedMachineId(state) } : undefined} .onMcpAuth=${(mode: "login" | "logout", serverName: string, context: { session: { id: string; cwd: string }; machineId: string }) => { this.closeSettings(); void this.auth.openMcpAuth(mode, serverName, context); }} .machine=${state.selectedMachine} .machineRuntime=${this.selectedMachineRuntime()} .machines=${state.machines} .machineStatuses=${state.machineStatuses} .machineRuntimes=${state.machineRuntimes} .actions=${this.getDefaultActions()} .themes=${this.plugins.getThemes()} .fileIconThemes=${this.plugins.getFileIconThemes()} .fileIconPreference=${this.fileIconPreference} .onSelectFileIconTheme=${(id: string) => { this.selectFileIconTheme(id); }} .onResetFileIconTheme=${() => { this.selectFileIconTheme(undefined); }} .themePreference=${this.themePreference} .activeThemeId=${this.activeThemeId} .hasLocalThemeOverride=${this.localThemePreference !== undefined} .onUseLocalTheme=${(preference: ThemePreference) => { this.pickTheme(preference); }} .onUseDefaultTheme=${() => { this.useDefaultTheme(); }} .onNavigate=${(section: SettingsSection) => { this.navigateSettings(section); }} .onClose=${() => { this.closeSettings(); }} .onMachineConfigSaved=${(machineId: string) => { void this.machines.refreshMachineIdentity(machineId); }} .onConfigSaved=${(config: PiWebConfigValues) => { this.applyClientConfig(config); }} .onRefreshMachineRuntime=${async (machineId: string) => { await this.machines.refreshMachineRuntime(machineId); }}></settings-dialog>` : null}
       </div>
     `;
   }
