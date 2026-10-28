@@ -2,7 +2,7 @@
 
 PI WEB separates component behaviour from a built-in base theme. Selected themes extend the base with CSS, including layout rules, rather than being limited to colour palettes.
 
-**Styling is mostly experimental.** The [initial theme styling contract](theme-styling-contract.md) defines supported hooks for conversation messages and selected choices. Outside that boundary, the base theme, visual design, layout, shared classes, theme properties, and internal selectors may evolve between releases. Capability version numbers describe integration methods, not frozen CSS or appearance.
+**Styling is mostly experimental.** The [initial theme styling contract](theme-styling-contract.md) defines supported hooks for conversation messages, selected choices, and project/workspace/session navigation rows. Outside that boundary, the base theme, visual design, layout, shared classes, theme properties, and internal selectors may evolve between releases. Capability version numbers describe integration methods, not frozen CSS or appearance.
 
 ## Ownership
 
@@ -44,7 +44,7 @@ Scope direct rules to the intended host because a contributed stylesheet reaches
 }
 ```
 
-The selectors above are examples against the current implementation, not additional supported public APIs. Use the [theme styling contract](theme-styling-contract.md) for supported conversation and choice hooks. Layout overrides must preserve the arrangements used by navigation state, collapsed panels, and viewport modes. Keep focus indicators, usable targets, reduced-motion support, and readable feedback when changing appearance. Base rules marked `!important` still follow the CSS cascade's important-layer ordering; themes should not use `!important` as a general override mechanism.
+The selectors above are examples against the current implementation, not additional supported public APIs. Use the [theme styling contract](theme-styling-contract.md) for supported conversation, choice, and navigation-row hooks. Layout overrides must preserve the arrangements used by navigation state, collapsed panels, and viewport modes. Keep focus indicators, usable targets, reduced-motion support, and readable feedback when changing appearance. Base rules marked `!important` still follow the CSS cascade's important-layer ordering; themes should not use `!important` as a general override mechanism.
 
 ## Current boundary
 
@@ -54,7 +54,7 @@ The composer includes a narrow unlayered CodeMirror integration stylesheet. Code
 
 Specialised styles embedded in individual components and feature plugins have not all moved. Those unlayered local rules continue to use the ordinary cascade; theme precedence over them is not guaranteed. Move remaining presentation incrementally, keeping behaviour in its owning component. Do not wrap composed base modules in another `pi-web-base` layer: that creates a nested layer with different precedence.
 
-The base is always present for now. Themes extend it; independently replacing or disabling the complete base is not yet supported. The initial supported hooks separate primitive state from semantic context without requiring extra wrappers. Broader selector contracts and supported layout variants can follow once this separation has been exercised in real themes.
+The base is always present for now. Themes extend it; independently replacing or disabling the complete base is not yet supported. The supported hooks separate primitive state from semantic context without requiring extra wrappers. Project, workspace, and session lists share row anatomy and explicit state hooks; their existing controllers still own navigation, bulk selection, and disclosure behavior. Broader selector contracts and supported layout variants can follow once this separation has been exercised in real themes.
 
 ## Playground theme
 

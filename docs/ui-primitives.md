@@ -69,7 +69,7 @@ Local sticky headers, shadows, and decorations can still use small stacking valu
 
 ## Sidebar list surfaces
 
-`sidebarListStyles` is the shared treatment for navigation lists. Grey section headers provide hierarchy above dark, continuous rows. Keep rows full-width and gapless; do not introduce inset card surfaces or visual gutters. Selected, hover, and keyboard-focus states remain on the entire row. Collapsed navigation sections keep the heading's 1px separator and omit the outer section border so adjacent borders do not double the line thickness.
+`sidebarListStyles` is the shared treatment for navigation lists. Projects, workspaces, and sessions expose supported context, anatomy, and state hooks through the [navigation-row styling contract](theme-styling-contract.md#sidebar-navigation-rows); those hooks reuse existing containers without changing row behavior. Grey section headers provide hierarchy above dark, continuous rows. Keep rows full-width and gapless; do not introduce inset card surfaces or visual gutters. Selected, hover, and keyboard-focus states remain on the entire row. Collapsed navigation sections keep the heading's 1px separator and omit the outer section border so adjacent borders do not double the line thickness.
 
 ## Dialog patterns
 
@@ -158,4 +158,4 @@ The current consumers are navigation headings, session selection controls, navig
 
 The base theme's internal style exports also supply the host-managed [shared UI bundle](plugins.md#host-provided-ui-styles). Plugins request `stylesheet-integration` and opt each root in with `{ sharedUi: true }`; the host injects, orders, and removes shared sheets. Plugins must not deep-import these modules, copy their styling, or insert shared CSS text themselves. Relay, Files, Git, and Tasks use the shared controls. Menus, forms, dialogs, and transcript patterns are not currently included.
 
-Styling remains experimental outside the [initial theme styling contract](theme-styling-contract.md), which supports conversation anatomy and selected-choice hooks. The remaining shared classes, theme properties, markup patterns, layout, and appearance may evolve between releases. The integration capability's version describes its methods, not a stable visual design or complete CSS class contract. Keep consumers aligned when changing shared patterns.
+Styling remains experimental outside the [initial theme styling contract](theme-styling-contract.md), which supports conversation anatomy, selected-choice hooks, and project/workspace/session navigation rows. The remaining shared classes, theme properties, markup patterns, layout, and appearance may evolve between releases. The integration capability's version describes its methods, not a stable visual design or complete CSS class contract. Keep consumers aligned when changing shared patterns.

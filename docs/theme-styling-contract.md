@@ -1,6 +1,6 @@
 # Theme styling contract
 
-Themes can change presentation without changing the meaning or behavior of controls. This initial contract covers conversation messages and two choice surfaces: code renderers and composer completions. Other selectors, palette properties, and layout details remain experimental.
+Themes can change presentation without changing the meaning or behavior of controls. This contract covers conversation messages, renderer/completion choices, and project/workspace/session navigation rows. Other selectors, palette properties, and layout details remain experimental.
 
 ## Compatibility and ownership
 
@@ -123,10 +123,77 @@ The context containers already exist for layout; choices are direct children. `.
 
 A theme may use a different geometric cue for completions. Keep focus independently visible; selection is not focus. This initial contract adds hooks without changing the existing base selection treatments.
 
+## Sidebar navigation rows
+
+Projects, workspaces, and sessions share row styling hooks while keeping their own data, actions, selection, and tree behavior. Existing containers carry these hooks; there is no extra wrapper or new generic widget.
+
+| Host | Section context |
+| --- | --- |
+| `:host(project-list)` | `[data-ui-context="projects"]` |
+| `:host(workspace-list)` | `[data-ui-context="workspaces"]` |
+| `:host(session-list)` | `[data-ui-context="sessions"]` |
+
+The section's `data-collapsed="true"` or `"false"` tracks whether its row list is hidden. A collapsed section retains its heading, but removes its list and rows from the DOM.
+
+### Anatomy
+
+| Hook | Meaning |
+| --- | --- |
+| `.ui-nav-list` | Existing scrolling list container; may also contain headings, toolbars, and disclosures |
+| `.ui-nav-row` | Focusable row and primary activation surface |
+| `.ui-nav-row-main` | Direct child containing the row's primary content |
+| `.ui-nav-row-label` | Primary label inside the main content; may include existing tree decorations |
+| `.ui-nav-row-meta` | Secondary information inside the main content; optional for workspaces |
+| `.ui-nav-row-leading` | Optional activity/unread mark inside the main content |
+| `.ui-nav-row-actions` | Direct child containing the independent secondary action |
+| `button.ui-nav-row-action` | Native action-popup trigger; retains `.ui-button` styling |
+| `.ui-nav-row-menu` | Associated native popover; locate it through the trigger's `aria-controls`, not DOM nesting |
+| `button.ui-nav-row-disclosure` | Optional agent-subsession disclosure immediately after its owning session row |
+| `button.ui-nav-section-toggle` | Existing section disclosure; also used for the archived-session subsection |
+
+Only the two main/actions child boundaries are shared across row kinds. Do not depend on a particular nesting between a label, metadata, or status mark and the main content. Lists may contain non-row elements between rows.
+
+Session action popovers live outside the row scroller; project/workspace popovers currently live inside their rows. All remain in their owner's shadow root. The popup trigger's `aria-expanded` tracks its open state; `aria-controls` identifies the popup when rendered. The ID format is not part of the styling contract.
+
+The row itself remains the primary activation surface, not a button enclosing secondary buttons. Existing Enter/Space activation and arrow-key navigation stay component-owned. Metadata can contain independently interactive plugin content. These hooks do not turn the list into an ARIA tree or listbox.
+
+### State
+
+Boolean presentation attributes use the strings `"true"` and `"false"`, except optional `data-expanded` as noted below.
+
+| State | Scope and meaning |
+| --- | --- |
+| `data-current` | All rows: currently navigated project, workspace, or session. The current row also has `aria-current="true"`; other rows omit it |
+| `data-activity` | All rows: `idle`, `session`, `terminal`, or `sending`, matching the existing activity indicator's resolved kind |
+| `data-busy` | All rows: session/sending activity, or workspace deletion in progress. Terminal presence and unread alone do not mean busy |
+| `data-unread` | All rows: the existing unread indication; project/workspace values come from their rolled-up snapshots, session values concern that session |
+| `data-selected` | Session rows: checked for a bulk action, distinct from navigation's `data-current` |
+| `data-selecting` | Session rows: a bulk-selection checkbox is currently shown for this row |
+| `data-archived` | Session rows: the session is archived, including archived ancestors shown in a current tree |
+| `data-expanded` | Session rows with an agent-child disclosure: `"true"` or `"false"`, synchronized with that button's `aria-expanded`. Omitted on other rows |
+
+Projects and workspaces do not acquire synthetic bulk-selection states. Archived sessions and deleting workspaces are not disabled navigation rows. Busy means work is underway, not that navigation is blocked. Existing native `:disabled` controls and `:checked` checkboxes remain the interaction authority; focus and hover use native pseudo-classes and never determine current/selected state.
+
+A session disclosure may show its own aggregate child-attention mark. That does not change the parent row's own activity/unread attributes. Pending-session status placeholders are not navigable rows and do not expose `.ui-nav-row`.
+
+Base defaults for these surfaces, including session-specific row styles, use `pi-web-base`. For example, an ordinary contributed sheet can compose context and anatomy without matching implementation selectors:
+
+```css
+:host(workspace-list) [data-ui-context="workspaces"] .ui-nav-row-label {
+  text-decoration: underline;
+}
+
+:host(session-list) .ui-nav-row[data-current="true"] .ui-nav-row-meta {
+  color: var(--pi-text);
+}
+```
+
+These hooks do not freeze dimensions, indentation formulas, decoration glyphs, or the whole sidebar DOM. Machine rows, session-tree navigation, bulk toolbars, and popup contents remain outside this contract.
+
 ## Accessibility and verification
 
 Themes may replace a cue, rather than display every possible cue. Speaker identity and meaningful states should remain visually distinguishable without hue alone. Small, restrained geometric cues can do this without repeated labels or prominent icons. Do not remove the only distinction unless another treatment replaces it.
 
 Preserve readable contrast, accessible names, focus indicators, native hidden/disabled states, usable targets, and document reading order. Decorative pseudo-elements must not intercept clicks or convey information unavailable from component semantics. Check forced colours as well as colour-vision simulations; background images and masks may disappear in forced-colour modes, so provide a structural fallback where needed.
 
-DOM tests protect the hooks and state synchronization. Browser tests exercise theme overrides, decorative masks, alignment, and removal against real components at desktop and touch viewport sizes. These checks establish a styling boundary, not certification of every custom theme. Navigation rows and the rest of the UI can adopt further contracts after their shared anatomy has been exercised.
+DOM tests protect the hooks and state synchronization. Browser tests exercise theme overrides, decorative masks, alignment, and removal against real components at desktop and touch viewport sizes. These checks establish a styling boundary, not certification of every custom theme. Other navigation surfaces and the rest of the UI can adopt further contracts after their shared anatomy has been exercised.
