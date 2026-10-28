@@ -172,7 +172,7 @@ export class WorkspaceList extends LitElement implements KeyboardNavigableSectio
     return html`
       <div class="action-menu ui-nav-row-actions">
         <button
-          class="ui-button ui-button--icon action-menu-toggle ui-nav-row-action"
+          class="ui-button ui-button--icon action-menu-toggle ui-nav-row-action ui-popup-trigger"
           title=${messages.t("workspaceActions")}
           aria-label=${messages.t("detailsFor", { label })}
           aria-expanded=${String(open)}
@@ -180,7 +180,7 @@ export class WorkspaceList extends LitElement implements KeyboardNavigableSectio
           @click=${(event: MouseEvent) => { event.stopPropagation(); this.toggleMenu(workspace.id); }}
         >⋯</button>
         ${open ? html`
-          <div popover="auto" class="action-menu-panel workspace-menu-panel ui-menu ui-nav-row-menu" id=${menuId} @click=${(event: MouseEvent) => { event.stopPropagation(); }}>
+          <div popover="auto" class="action-menu-panel workspace-menu-panel ui-menu ui-nav-row-menu ui-popup-panel" data-ui-context="workspace-actions" id=${menuId} @click=${(event: MouseEvent) => { event.stopPropagation(); }}>
             ${this.renderWorkspaceActions(workspace, index)}
             ${this.renderWorkspaceDetails(label, items, workspace)}
           </div>
@@ -214,7 +214,7 @@ export class WorkspaceList extends LitElement implements KeyboardNavigableSectio
     const errorId = `${inputId}-error`;
     return html`
       <div class="workspace-menu-trust">
-        <label class="action-menu-checkbox ui-menu-item" for=${inputId}>
+        <label class="action-menu-checkbox ui-menu-item" data-busy=${busy} for=${inputId}>
           <span>${busy ? messages.t("trustedBusy") : messages.t("trusted")}</span>
           <input
             id=${inputId}

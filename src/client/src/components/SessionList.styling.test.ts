@@ -123,6 +123,9 @@ it("associates the detached action popup with its own row without navigating", a
   const panel = list.renderRoot.querySelector(".ui-nav-row-menu");
   expect(panel).not.toBeNull();
   expect(panel?.id).toBe(action.getAttribute("aria-controls"));
+  expect(action.classList.contains("ui-popup-trigger")).toBe(true);
+  expect(panel?.classList.contains("ui-popup-panel")).toBe(true);
+  expect(panel?.getAttribute("data-ui-context")).toBe("session-actions");
   expect(action.getAttribute("aria-expanded")).toBe("true");
   expect(row(list, second.id).contains(panel)).toBe(false);
   expect(list.onSelect).not.toHaveBeenCalled();

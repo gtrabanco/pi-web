@@ -6,6 +6,7 @@ import type { MachineStatusSnapshot } from "../../src/shared/machineStatus";
 
 // Real components and deterministic local data; no app runtime or session daemon.
 trustApi.workspaceTrust = () => Promise.resolve({ path: "/repo", decision: false, trusted: false });
+trustApi.setWorkspaceTrust = (_projectId, _workspaceId, trusted) => Promise.resolve({ path: "/repo", decision: trusted, trusted });
 const style = document.createElement("style");
 style.textContent = `
   :root { --pi-bg: #161616; --pi-surface: #252525; --pi-surface-hover: #303030; --pi-text: #eee; --pi-text-bright: #fff; --pi-border: #555; --pi-border-muted: #444; --pi-muted: #aaa; --pi-success: #8cbd9b; --pi-warning: #d1b571; --pi-accent: #aaf; --pi-selection-bg: #303044; }

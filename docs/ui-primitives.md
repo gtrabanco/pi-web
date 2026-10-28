@@ -53,7 +53,7 @@ Popup surfaces use a single-column layout, size to their widest item by default,
 
 A popup item uses both `ui-button` and `ui-menu-item` on its native button. A checkbox option uses `ui-menu-item` on its native label, containing its input. Add `danger` for a destructive action. Keep placement, open/close state, and event handling in the owning component or its existing controller.
 
-`ui-menu` describes the surface, not an ARIA role. Do not add `role="menu"` unless the owner implements the corresponding keyboard behavior.
+`ui-menu` describes the surface, not an ARIA role. Do not add `role="menu"` unless the owner implements the corresponding keyboard behavior. The [popup/menu styling contract](theme-styling-contract.md#popups-and-menu-controls) adds `ui-popup-trigger` and `ui-popup-panel` to existing controls, separates native visibility/disabled/checked states from current destinations, and lists supported contexts. Completion lists and message-action strips share popup anatomy without adopting menu layout.
 
 ## Surface ownership
 
@@ -158,4 +158,4 @@ The current consumers are navigation headings, session selection controls, navig
 
 The base theme's internal style exports also supply the host-managed [shared UI bundle](plugins.md#host-provided-ui-styles). Plugins request `stylesheet-integration` and opt each root in with `{ sharedUi: true }`; the host injects, orders, and removes shared sheets. Plugins must not deep-import these modules, copy their styling, or insert shared CSS text themselves. Relay, Files, Git, and Tasks use the shared controls. Menus, forms, dialogs, and transcript patterns are not currently included.
 
-Styling remains experimental outside the [initial theme styling contract](theme-styling-contract.md), which supports conversation anatomy, selected-choice hooks, project/workspace/session navigation rows, and composer controls. The remaining shared classes, theme properties, markup patterns, layout, and appearance may evolve between releases. The integration capability's version describes its methods, not a stable visual design or complete CSS class contract. Keep consumers aligned when changing shared patterns.
+Styling remains experimental outside the [initial theme styling contract](theme-styling-contract.md), which supports conversation anatomy, selected-choice hooks, project/workspace/session navigation rows, composer controls, and popup/menu anatomy. The remaining shared classes, theme properties, markup patterns, layout, and appearance may evolve between releases. The integration capability's version describes its methods, not a stable visual design or complete CSS class contract. Keep consumers aligned when changing shared patterns.

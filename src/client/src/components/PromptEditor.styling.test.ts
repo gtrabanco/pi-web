@@ -237,6 +237,8 @@ describe("composer styling contract", () => {
     const attach = action(editor, "attach");
     const panel = required(editor, ".attach-source-panel");
     expect(panel.dataset["uiContext"]).toBe("composer-attachment-sources");
+    expect(panel.classList.contains("ui-popup-panel")).toBe(true);
+    expect(attach.classList.contains("ui-popup-trigger")).toBe(android);
     expect(panel.hasAttribute("popover")).toBe(true);
     expect(panel.parentElement).toBe(attach.parentElement);
     expect([...panel.querySelectorAll("button")]).toEqual([action(editor, "attach-photos"), action(editor, "attach-camera"), action(editor, "attach-files")]);

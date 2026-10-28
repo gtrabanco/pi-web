@@ -64,6 +64,7 @@ describe("workspace sidebar styling contract", () => {
     expect(actions?.parentElement).toBe(row);
     const trigger = actions?.querySelector<HTMLButtonElement>(".action-menu-toggle.ui-nav-row-action");
     if (!trigger) throw new Error("Expected a row action");
+    expect(trigger.classList.contains("ui-popup-trigger")).toBe(true);
     expect(trigger.getAttribute("aria-expanded")).toBe("false");
     trigger.click();
     await list.updateComplete;
@@ -71,6 +72,8 @@ describe("workspace sidebar styling contract", () => {
     const panel = row.querySelector(".action-menu-panel.ui-nav-row-menu");
     expect(panel).not.toBeNull();
     expect(panel?.parentElement).toBe(actions);
+    expect(panel?.classList.contains("ui-popup-panel")).toBe(true);
+    expect(panel?.getAttribute("data-ui-context")).toBe("workspace-actions");
     expect(trigger.getAttribute("aria-controls")).toBe(panel?.id);
     expect(panel?.id).not.toBe("");
     expect(trigger.getAttribute("aria-expanded")).toBe("true");
@@ -480,15 +483,18 @@ describe("workspace trust menu item", () => {
     const checkbox = trustCheckbox(list);
     expect(checkbox.checked).toBe(true);
     expect(checkbox.disabled).toBe(false);
+    expect(checkbox.closest(".ui-menu-item")?.getAttribute("data-busy")).toBe("false");
     checkbox.click();
     await list.updateComplete;
     expect(save).toHaveBeenCalledWith("project-1", "ws-a", false, "local");
     expect(checkbox.disabled).toBe(true);
+    expect(checkbox.closest(".ui-menu-item")?.getAttribute("data-busy")).toBe("true");
     rejectSave(new Error("Cannot save trust"));
     await saving.catch(() => undefined);
     await list.updateComplete;
     expect(checkbox.disabled).toBe(false);
     expect(checkbox.checked).toBe(true);
+    expect(checkbox.closest(".ui-menu-item")?.getAttribute("data-busy")).toBe("false");
     const error = list.shadowRoot?.querySelector('[role="alert"]');
     expect(error?.textContent).toBe("Cannot save trust");
     expect(checkbox.getAttribute("aria-describedby")).toContain(error?.id);

@@ -1,7 +1,7 @@
 import { LocalizationController } from "../localization/browser";
 import { machineMessages as messages } from "../machineMessages";
 import { stylesheetIntegrationCapability } from "../plugins/styles";
-import { LitElement, css, html, type PropertyValues, type TemplateResult } from "lit";
+import { LitElement, css, html, nothing, type PropertyValues, type TemplateResult } from "lit";
 import { customElement, property, state } from "lit/decorators.js";
 import type { Machine, MachineHealth, MachineStatus } from "../api";
 import { rollUpStatusFlags, type MachineStatusSnapshot } from "../../../shared/machineStatus";
@@ -70,10 +70,11 @@ export class MachineSwitcher extends LitElement implements KeyboardNavigableSect
       <div class="machine-switcher">
         <button
           type="button"
-          class=${`machine-switcher-button ${status === "offline" || status === "error" ? "disconnected" : ""}`}
+          class=${`machine-switcher-button ui-popup-trigger ${status === "offline" || status === "error" ? "disconnected" : ""}`}
           title=${messages.t("identity", { name: selected.name, location: machineSubtitle(selected), status: machineStatusLabel(status) })}
           aria-label=${this.machineSwitcherAriaLabel(selected)}
           aria-expanded=${String(this.open)}
+          aria-controls="machine-switcher-menu"
           @click=${() => { this.toggleMenu(); }}
           @keydown=${(event: KeyboardEvent) => { this.handleSwitcherButtonKeydown(event); }}
         >
@@ -87,7 +88,7 @@ export class MachineSwitcher extends LitElement implements KeyboardNavigableSect
           <span class="machine-chevron" aria-hidden="true">▾</span>
         </button>
         ${this.open ? html`
-          <div popover="auto" class="machine-switcher-menu ui-menu" @click=${(event: MouseEvent) => { event.stopPropagation(); }}>
+          <div popover="auto" id="machine-switcher-menu" class="machine-switcher-menu ui-menu ui-popup-panel" data-ui-context="machine-picker" @click=${(event: MouseEvent) => { event.stopPropagation(); }}>
             ${this.machines.map((machine) => this.renderMachineOption(machine))}
           </div>
         ` : null}
@@ -96,10 +97,11 @@ export class MachineSwitcher extends LitElement implements KeyboardNavigableSect
   }
 
   private renderMachineOption(machine: Machine): TemplateResult {
-    const selected = this.selected?.id === machine.id;
+    const selected = this.selectedMachine()?.id === machine.id;
     const status = machineStatus(machine, this.statuses);
     const hasActions = canRemoveMachine(machine) && (this.onRemove !== undefined || this.onEdit !== undefined);
     const actionsOpen = this.openActionsMachineId === machine.id;
+    const actionsId = `machine-option-actions-${encodeURIComponent(machine.id)}`;
     return html`
       <div class=${`machine-option ${selected ? "selected" : ""} ${hasActions ? "" : "no-actions"}`}>
         <button
@@ -107,6 +109,8 @@ export class MachineSwitcher extends LitElement implements KeyboardNavigableSect
           class="ui-button ui-menu-item machine-option-main"
           title=${machineTitle(machine)}
           data-machine-id=${machine.id}
+          data-current=${String(selected)}
+          aria-current=${selected ? "true" : nothing}
           @click=${() => { this.select(machine); }}
           @keydown=${(event: KeyboardEvent) => { this.handleMachineOptionKeydown(event); }}
         >
@@ -117,14 +121,15 @@ export class MachineSwitcher extends LitElement implements KeyboardNavigableSect
           <div class="machine-option-actions">
             <button
               type="button"
-              class="ui-button ui-button--icon machine-option-actions-toggle"
+              class="ui-button ui-button--icon machine-option-actions-toggle ui-popup-trigger"
               title=${messages.t("actions")}
               aria-label=${messages.t("actionsFor", { name: machine.name })}
               aria-expanded=${String(actionsOpen)}
+              aria-controls=${actionsId}
               @click=${(event: MouseEvent) => { event.stopPropagation(); this.toggleActionsMenu(machine.id); }}
             >⋯</button>
             ${actionsOpen ? html`
-              <div popover="auto" class="machine-option-actions-panel ui-menu" @click=${(event: MouseEvent) => { event.stopPropagation(); }}>
+              <div popover="auto" id=${actionsId} class="machine-option-actions-panel ui-menu ui-popup-panel" data-ui-context="machine-actions" @click=${(event: MouseEvent) => { event.stopPropagation(); }}>
                 ${this.onEdit === undefined ? null : html`<button class="ui-button ui-menu-item" @click=${() => { this.open = false; this.openActionsMachineId = undefined; this.onEdit?.(machine); }}>${messages.t("edit")}</button>`}
                 ${this.onRemove === undefined ? null : html`<button class="danger ui-button ui-menu-item" title=${messages.t("removeNamed", { name: machine.name })} @click=${() => { this.removeMachine(machine); }}>${messages.t("remove")}</button>`}
               </div>
@@ -327,6 +332,7 @@ export class MachineSwitcher extends LitElement implements KeyboardNavigableSect
   }
 
   static override styles = [uiButtonStyles, uiMenuStyles, css`
+    @layer pi-web-base {
     :host { min-width: 0; display: flex; container: machine-selector / inline-size; }
     .machine-switcher { flex: 1 1 auto; min-width: 0; display: flex; }
     .machine-switcher-button { box-sizing: border-box; width: 100%; min-width: 0; min-height: 44px; display: flex; align-items: center; gap: 6px; border: 0; border-radius: 0; background: transparent; color: var(--pi-text); padding: 6px 10px; cursor: pointer; text-align: start; }
@@ -364,6 +370,7 @@ export class MachineSwitcher extends LitElement implements KeyboardNavigableSect
     .machine-option-actions-toggle { height: 100%; }
     .machine-option.selected .machine-option-main { background: var(--pi-selection-bg); }
     @keyframes pulse { 0%, 100% { opacity: .55; } 50% { opacity: 1; } }
+    }
   `];
 }
 

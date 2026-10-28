@@ -22,6 +22,8 @@ describe("AutocompleteMenu", () => {
     menu.items = [{ kind: "command", replaceFrom: 0, replaceTo: 1, insertText: "/tree", detail: "command" }];
     await menu.updateComplete;
     const panel = menu.shadowRoot?.querySelector<HTMLElement>("[popover]");
+    expect(panel?.classList.contains("ui-popup-panel")).toBe(true);
+    expect(panel?.classList.contains("ui-menu")).toBe(false);
     expect(document.activeElement).toBe(input);
     const event = new MouseEvent("mousedown", { bubbles: true, cancelable: true });
     menu.shadowRoot?.querySelector("button")?.dispatchEvent(event);

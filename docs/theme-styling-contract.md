@@ -1,6 +1,6 @@
 # Theme styling contract
 
-Themes can change presentation without changing the meaning or behavior of controls. This contract covers conversation messages, renderer/completion choices, project/workspace/session navigation rows, and composer controls. Other selectors, palette properties, and layout details remain experimental.
+Themes can change presentation without changing the meaning or behavior of controls. This contract covers conversation messages, renderer/completion choices, project/workspace/session navigation rows, composer controls, and popup/menu anatomy. Other selectors, palette properties, and layout details remain experimental.
 
 ## Compatibility and ownership
 
@@ -188,7 +188,7 @@ Base defaults for these surfaces, including session-specific row styles, use `pi
 }
 ```
 
-These hooks do not freeze dimensions, indentation formulas, decoration glyphs, or the whole sidebar DOM. Machine rows, session-tree navigation, bulk toolbars, and popup contents remain outside this contract.
+These hooks do not freeze dimensions, indentation formulas, decoration glyphs, or the whole sidebar DOM. Machine rows, session-tree navigation, and bulk toolbars remain outside this contract. Popup controls have their own boundary below; richer workspace detail content is not frozen.
 
 ## Composer controls
 
@@ -248,6 +248,48 @@ Submission/steering buttons reserve `::after` for an optional theme-owned decora
 Keep focus distinct from the default cue. This boundary does not freeze CodeMirror internals, input sizing, draft storage, chip/attachment rendering, external dialog DOM, or the whole footer structure.
 
 **Known keyboard limitation:** CodeMirror's Android input path can normalize modified Enter to a newline before composer key handlers run. The toolbar contract does not replace that input path. If affected, use a different configured key combination or the submission button. Browser contract tests use a modified letter chord on all engines; existing component tests cover Enter routing independently.
+
+## Popups and menu controls
+
+Popup presentation and menu-item presentation are separate. A completion list, a horizontal message-action strip, and a column of actions can all use native anchored popovers without becoming the same layout or ARIA widget. No new wrappers are required.
+
+| Hook | Meaning |
+| --- | --- |
+| `button.ui-popup-trigger` | Existing native trigger for an application-owned popup |
+| `.ui-popup-panel[popover]` | Existing native top-layer panel, retained in its owner's themed root |
+| `.ui-menu` | Optional single-column menu surface, not required on every popup |
+| `button.ui-button.ui-menu-item` | Native action or destination choice inside that surface |
+| `label.ui-menu-item` containing a checkbox | Native checkbox option, not a synthetic menu-item widget |
+| `.ui-menu-item.danger` | Existing destructive-action treatment; labels and callbacks remain owner-defined |
+
+Panels use these contexts: `project-actions`, `workspace-actions`, `session-actions`, `machine-actions`, `machine-picker`, `composer-attachment-sources`, `message-actions`, and `completions`. The first six use `.ui-menu`. Message actions keep their parent-owned slotted action strip; completions keep their existing `.ui-choice` anatomy and editor-owned anchor. Their contents do not acquire menu-item classes or menu/listbox roles.
+
+### Native state and association
+
+- `aria-expanded` (`true` or `false`) belongs to the trigger; `aria-controls` identifies its panel in the same shadow root. IDs are opaque and may not resolve while a conditionally rendered panel is closed. Nested triggers have independent associations.
+- `.ui-popup-panel:popover-open` is the panel's native visibility state. There is no duplicate `data-open` flag. Do not use `aria-expanded` or a theme's `display` rule to force a closed popover visible.
+- Native buttons expose `:disabled`, `:hover`, and `:focus-visible`. Checkbox options expose their actual input's `:checked` and `:disabled`; themes can use `.ui-menu-item:has(input:checked)`. A label is not itself a disabled control.
+- Workspace trust labels additionally expose `data-busy` (`true` or `false`) while their read/save operation is pending. This does not replace input disabled state or imply that the whole popup is busy.
+- Machine-picker destination buttons expose `data-current` (`true` or `false`) and current-only `aria-current="true"`. Current identifies the displayed machine, including the initial fallback when no explicit selection is supplied. Focus, hover, and opening that machine's action popup do not select it. These are not toggle buttons; do not invent `aria-pressed` or a universal `data-selected` menu state.
+
+Android's attachment source button gets `.ui-popup-trigger` only when it owns the source popover. Other platforms retain their direct native file chooser and the separate `data-composer-action="attach"` hook, without advertising an application-popup association. Completion anchors remain editable controls, not fabricated trigger buttons.
+
+Supported surface/trigger presentation defaults use `pi-web-base`, so ordinary theme rules can change borders, rounding, colours, item treatment, and optional decoration without `!important`. For example:
+
+```css
+.ui-popup-panel.ui-menu { border-radius: 0; }
+.ui-menu-item:disabled { text-decoration: line-through; }
+.ui-menu-item:has(input:checked) { font-weight: 600; }
+[data-ui-context="machine-picker"] .ui-menu-item[data-current="true"] {
+  font-weight: 600;
+}
+```
+
+Machine-picker buttons reserve `::after` for an optional theme-owned current cue. Playground draws a short logical-start edge inside existing padding, without adding a gutter. Destructive menu labels gain a dotted underline. Neither cue replaces names, native state, or focus indication; established themes retain their appearance.
+
+The controller still owns fixed positioning, viewport clamping, width/height constraints, native top-layer order, dismissal, and modal ownership. Themes must not replace those with stacking numbers or override its inline positioning. Tab/arrow behavior stays with each owner: this contract does not turn every action panel into an arrow-key ARIA menu, add a focus trap, or change completion focus preservation. Escape still closes the innermost popup first and returns focus according to that owner's existing behavior.
+
+This boundary does not freeze all popup contents, machine-row layout, workspace detail structure, glyphs, or native OS chooser UI.
 
 ## Accessibility and verification
 
