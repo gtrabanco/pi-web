@@ -2,7 +2,6 @@ import { createReadStream } from "node:fs";
 import { readFile, stat } from "node:fs/promises";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { extname, join, resolve, sep } from "node:path";
-import { fileURLToPath } from "node:url";
 import type { Plugin } from "vite";
 import { defineConfig, normalizePath } from "vite";
 import { effectivePiWebConfig } from "./src/config";
@@ -172,13 +171,20 @@ function devDeploymentIdentityPlugin(): Plugin {
 }
 
 function manualRefreshPlugin(): Plugin {
-  const clientEntry = normalizePath(fileURLToPath(new URL("../client/client.mjs", import.meta.resolve("vite"))));
+  let clientEntry: string | undefined;
   const connect = "transport.connect(createHMRHandler(handleMessage));";
   return {
     name: "pi-web-manual-refresh",
     apply: "serve",
+    async configureServer(server) {
+      // Ask the serving runtime, not this config's import resolution. Docker
+      // exposes the same dependencies at multiple absolute mount paths.
+      const client = await server.environments.client.pluginContainer.resolveId("/@vite/client");
+      if (client === null) throw new Error("Cannot resolve Vite's served client for manual refresh");
+      clientEntry = normalizePath(client.id.split("?")[0] ?? client.id);
+    },
     transform(code, id) {
-      if (id.split("?")[0] !== clientEntry) return;
+      if (clientEntry === undefined || normalizePath(id.split("?")[0] ?? id) !== clientEntry) return;
       // Vite 8 starts its client even with hmr:false and ws:false. An unanswered
       // handshake blocks Chromium's subsequent /api WebSockets to the same host.
       // Keep Vite's helpers (dynamic plugin imports need injectQuery), but never
