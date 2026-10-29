@@ -60,6 +60,7 @@
       /* Match the PI WEB mark in favicon.svg; the surrounding loader uses system colours. */
       #pi-web-startup svg { width: 96px; height: 16px; overflow: visible; color: #00f0d8; fill: currentColor; filter: drop-shadow(0 0 4px color-mix(in srgb, currentColor 25%, transparent)); animation: pi-web-startup-glow 2400ms ease-in-out infinite alternate; }
       @media (prefers-color-scheme: light) { #pi-web-startup svg { color: #008c82; } }
+      html[data-pi-web-deployment="dev"] #pi-web-startup svg { color: #a371f7; }
       @keyframes pi-web-startup-glow { to { filter: drop-shadow(0 0 8px color-mix(in srgb, currentColor 45%, transparent)); } }
       @media (prefers-reduced-motion: reduce) { #pi-web-startup svg { animation: none; } }
       html:not([data-pi-web-loading]) #pi-web-startup { display: none; }

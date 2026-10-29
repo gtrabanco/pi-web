@@ -32,7 +32,7 @@ import { createActiveProfilePiPackageService, type PiPackageService } from "./pi
 import { registerPiPackageRoutes } from "./piPackageRoutes.js";
 import { createPiWebStatusCache, type PiWebStatusCache } from "./piWebStatusCache.js";
 import { detectPiWebInstallation, getPiWebRuntime, getPiWebStatus, getPiWebVersionStatus } from "./piWebStatus.js";
-import { createDeploymentFlavorResolver } from "./deploymentIdentity.js";
+import { createDeploymentFlavorResolver, deploymentHtmlForFlavor } from "./deploymentIdentity.js";
 import { registerDeploymentIdentityAssetRoutes } from "./deploymentIdentityRoutes.js";
 import type { PiWebDeploymentFlavor } from "./deploymentIdentity.js";
 import {
@@ -286,12 +286,19 @@ export async function buildApp(deps: AppDependencies = {}): Promise<FastifyInsta
   const packagedClientDist = join(dirname(fileURLToPath(import.meta.url)), "..", "client");
   const clientDist = deps.clientDist ?? (existsSync(packagedClientDist) ? packagedClientDist : join(process.cwd(), "dist", "client"));
   if (clientDist !== false && existsSync(clientDist)) {
+    const deploymentFlavor = deps.deploymentFlavor ?? createDeploymentFlavorResolver(
+      async () => {
+        const activeAgentProfile = await agentProfileProvider.getActiveAgentProfile();
+        return detectPiWebInstallation(activeAgentProfile.status === "available" ? activeAgentProfile.profile.dir : undefined);
+      },
+      (error) => { app.log.warn({ err: error }, "failed to detect PI WEB deployment flavor"); },
+    );
     const renderHtml = async (_request: unknown, reply: FastifyReply) => {
       const html = await readFile(join(clientDist, "index.html"), "utf8");
       const bootstrap = html.includes("pi-web-theme-data")
         ? await createThemeBootstrap((preference) => readThemeSelection(themeCatalog, configService, preference), themeCatalog) : undefined;
       return reply.header("Cache-Control", "private, no-cache").type("text/html; charset=utf-8")
-        .send(injectThemeBootstrap(html, bootstrap));
+        .send(deploymentHtmlForFlavor(injectThemeBootstrap(html, bootstrap), await deploymentFlavor()));
     };
     app.get("/", renderHtml);
     app.get("/index.html", renderHtml);
@@ -305,13 +312,6 @@ export async function buildApp(deps: AppDependencies = {}): Promise<FastifyInsta
         if (filePath.startsWith(hashedAssetsDir)) res.header("cache-control", "public, max-age=31536000, immutable");
       },
     });
-    const deploymentFlavor = deps.deploymentFlavor ?? createDeploymentFlavorResolver(
-      async () => {
-        const activeAgentProfile = await agentProfileProvider.getActiveAgentProfile();
-        return detectPiWebInstallation(activeAgentProfile.status === "available" ? activeAgentProfile.profile.dir : undefined);
-      },
-      (error) => { app.log.warn({ err: error }, "failed to detect PI WEB deployment flavor"); },
-    );
     registerDeploymentIdentityAssetRoutes(app, { clientDist, flavor: deploymentFlavor, installationName: readInstallationName });
     app.setNotFoundHandler(renderHtml);
   }

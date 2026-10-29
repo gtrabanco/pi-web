@@ -5,7 +5,7 @@ import { extname, join, resolve, sep } from "node:path";
 import type { Plugin } from "vite";
 import { defineConfig, normalizePath } from "vite";
 import { effectivePiWebConfig } from "./src/config";
-import { DEPLOYMENT_MANIFEST_CONTENT_TYPE, DEPLOYMENT_MANIFEST_PATH, createDeploymentFlavorResolver, deploymentIdentityAssetForPath, deploymentManifestForFlavor, isDeploymentIdentityAssetPath } from "./src/server/deploymentIdentity";
+import { DEPLOYMENT_MANIFEST_CONTENT_TYPE, DEPLOYMENT_MANIFEST_PATH, createDeploymentFlavorResolver, deploymentHtmlForFlavor, deploymentIdentityAssetForPath, deploymentManifestForFlavor, isDeploymentIdentityAssetPath } from "./src/server/deploymentIdentity";
 import { detectPiWebInstallation } from "./src/server/piWebStatus";
 import { fetchThemeBootstrap, injectThemeBootstrap } from "./src/server/themeBootstrap";
 
@@ -159,10 +159,17 @@ async function serveDevDeploymentIdentity(request: IncomingMessage, response: Se
   createReadStream(serving.filePath).pipe(response);
 }
 
-function devDeploymentIdentityPlugin(): Plugin {
+export function devDeploymentIdentityPlugin(flavor = deploymentFlavor): Plugin {
   return {
     name: "pi-web-dev-deployment-identity",
     apply: "serve",
+    transformIndexHtml: {
+      order: "pre",
+      async handler(html, context) {
+        if (context.originalUrl === undefined) return html;
+        return deploymentHtmlForFlavor(html, await flavor());
+      },
+    },
     configureServer(server) {
       server.middlewares.use((request, response, next) => {
         void serveDevDeploymentIdentity(request, response, next);

@@ -60,6 +60,18 @@ describe("client static caching", () => {
     } finally { await app.close(); }
   });
 
+  it.each(["stable", "dev"] as const)("delivers the %s deployment identity with the initial shell", async (flavor) => {
+    await writeFile(join(clientDist, "index.html"), "<html><body><pi-web-app></pi-web-app></body></html>");
+    const app = await buildApp({ clientDist, logger: false, deploymentFlavor: () => Promise.resolve(flavor) });
+    try {
+      for (const url of ["/", "/index.html", "/sessions/example"]) {
+        const shell = await app.inject(url);
+        expect(shell.statusCode).toBe(200);
+        expect(shell.body.includes('data-pi-web-deployment="dev"')).toBe(flavor === "dev");
+      }
+    } finally { await app.close(); }
+  });
+
   it("keeps unhashed static files revalidating", async () => {
     const app = await buildApp({ clientDist, logger: false });
     try {

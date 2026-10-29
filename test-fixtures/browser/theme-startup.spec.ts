@@ -1,5 +1,6 @@
 import { readFile } from "node:fs/promises";
 import { expect, test, type Page } from "@playwright/test";
+import { deploymentHtmlForFlavor } from "../../src/server/deploymentIdentity.js";
 
 const deliveredCatalog = {
   themes: [
@@ -92,12 +93,15 @@ test("application initialization proceeds while the selected declarative palette
 
 // Serve the actual startup document without the application module. This makes
 // pre-application painting observable without a daemon or timing-based sleeps.
-for (const colorScheme of ["light", "dark"] as const) {
-  test(`startup follows the ${colorScheme} device scheme before application startup`, async ({ page }) => {
+for (const { colorScheme, flavor } of [
+  { colorScheme: "light", flavor: "stable" }, { colorScheme: "dark", flavor: "stable" },
+  { colorScheme: "light", flavor: "dev" }, { colorScheme: "dark", flavor: "dev" },
+] as const) {
+  test(`startup follows the ${colorScheme} device scheme before application startup (${flavor})`, async ({ page }) => {
     await page.emulateMedia({ colorScheme });
     await page.route("**/theme-startup.html", async (route) => {
       const html = await readFile(new URL("../../src/client/index.html", import.meta.url), "utf8");
-      await route.fulfill({ contentType: "text/html", body: html.replaceAll("%BASE_URL%", "./") });
+      await route.fulfill({ contentType: "text/html", body: deploymentHtmlForFlavor(html.replaceAll("%BASE_URL%", "./"), flavor) });
     });
     await page.route("**/src/startup.ts", (route) => route.fulfill({ contentType: "text/javascript", body: "" }));
     await page.goto("/theme-startup.html");
@@ -113,7 +117,7 @@ for (const colorScheme of ["light", "dark"] as const) {
     await expect(loader).toHaveAccessibleName(/.+/);
     expect((await loader.innerText()).trim()).toBe("");
     await expect(loader.locator("svg")).toBeVisible();
-    await expect(loader.locator("svg")).toHaveCSS("fill", colorScheme === "light" ? "rgb(0, 140, 130)" : "rgb(0, 240, 216)");
+    await expect(loader.locator("svg")).toHaveCSS("fill", flavor === "dev" ? "rgb(163, 113, 247)" : colorScheme === "light" ? "rgb(0, 140, 130)" : "rgb(0, 240, 216)");
     await expect(page.locator('meta[name="theme-color"]')).toHaveCount(0);
     await expect(page.locator("pi-web-app")).toBeHidden();
     const system = await loader.evaluate((element) => ({ background: getComputedStyle(element).backgroundColor, text: getComputedStyle(element).color }));
