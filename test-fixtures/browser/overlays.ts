@@ -77,7 +77,13 @@ render(html`<style>
   .clip { display: flex; align-items: center; gap: 10px; position: relative; transform: translateZ(0); overflow: hidden; height: 56px; padding: 8px; border: 1px solid #888; }
   machine-switcher { width: 240px; flex: 0 0 240px; }
 </style><div class="scroll"><div class="scroll-content"><div class="clip">${clippedSwitcher}${messageActions}</div></div></div>`, scrollingRoot);
+// Completion positioning measures the outermost shadow host as the app layout.
+// Match PiWebApp's full-height fixed shell rather than making the editor itself
+// the outermost host and accidentally constraining its menu to the input box.
 const root = document.createElement("main");
+root.style.cssText = "position: fixed; inset: 0; height: 100dvh; overflow: hidden;";
+const application = root.attachShadow({ mode: "open" });
+application.append(style.cloneNode(true));
 document.body.append(root);
 render(html`
   <div class="toolbar">
@@ -89,7 +95,7 @@ render(html`
   </div>
   ${layout}
   ${scrollingHost}
-`, root);
+`, application);
 await Promise.all([layout.updateComplete, editor.updateComplete, clippedSwitcher.updateComplete, messageActions.updateComplete]);
 
 declare global {
