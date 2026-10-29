@@ -82,7 +82,10 @@ export interface SubsessionReadQuery {
 }
 
 export interface SubsessionToolDeps {
+  archive(parentSessionId: string, sessionId: string, parentSessionFile?: string): Promise<void>;
   spawn(input: SpawnSubsessionInvocation): Promise<SpawnSubsessionResult>;
+  stop(parentSessionId: string, sessionId: string, parentSessionFile?: string): Promise<SubsessionSummary>;
+  resume(parentSessionId: string, sessionId: string, prompt?: string, parentSessionFile?: string): Promise<SubsessionSummary>;
   list(parentSessionId: string, parentSessionFile?: string): Promise<SubsessionSummary[]>;
   join(parentSessionId: string, parentSessionFile?: string, toolCallId?: string): Promise<SubsessionJoinResult>;
   check(parentSessionId: string, sessionId: string, parentSessionFile?: string, toolCallId?: string): Promise<SubsessionCheckResult>;
@@ -109,6 +112,19 @@ const CheckSubsessionParams = Type.Object({
   sessionId: Type.String({
     description: "Tracked child id from spawn_subsession or list_subsessions.",
   }),
+});
+
+const ManageSubsessionParams = Type.Object({
+  action: Type.Enum(["stop", "resume", "archive"] as const, {
+    type: "string",
+    description: "stop interrupts the current run; resume continues the conversation; archive archives an idle child.",
+  }),
+  sessionId: Type.String({
+    description: "Direct child id from spawn_subsession or list_subsessions.",
+  }),
+  prompt: Type.Optional(Type.String({
+    description: "For resume only: new instructions for the child's existing conversation. Omit to continue its previous task. Rejected with stop or archive.",
+  })),
 });
 
 const ReadSubsessionParams = Type.Object({
@@ -200,8 +216,8 @@ function renderTranscript(result: SubsessionReadResult): string {
 }
 
 /**
- * Tools that let an agent spawn *tracked* child sessions, inspect them, and
- * explicitly yield at a join point.
+ * Tools that let an agent spawn *tracked* child sessions, inspect and control
+ * their runs, and explicitly yield at a join point.
  *
  * A subsession records its parent in its session header, the parent is notified
  * when it stops working, and the parent may read its transcript/result. The
@@ -296,6 +312,41 @@ export function createSubsessionToolDefinitions(spawningCwd: string, deps: Subse
     },
   });
 
+  const manageTool = defineTool<typeof ManageSubsessionParams, SubsessionSummary | { sessionId: string; archived: true }>({
+    name: "manage_subsession",
+    label: "Manage subsession",
+    description: "Manage a direct child created by this session; not unrelated sessions or grandchildren. All actions preserve the parent-child relationship. stop interrupts the current run without persistently pausing it; a later resume or message can start it again. resume continues the same conversation, optionally with a prompt, and rejects a working child. archive preserves history and requires an idle child; stop it first if needed. prompt is allowed only with resume.",
+    promptSnippet: "manage_subsession: stop, resume, or archive a direct child; prompt is resume-only",
+    parameters: ManageSubsessionParams,
+    async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
+      if (params.action !== "resume" && params.prompt !== undefined) throw new Error("prompt is only supported with the resume action");
+      const parentSessionId = ctx.sessionManager.getSessionId();
+      const parentSessionFile = ctx.sessionManager.getSessionFile() ?? undefined;
+      switch (params.action) {
+        case "stop": {
+          const result = await deps.stop(parentSessionId, params.sessionId, parentSessionFile);
+          return {
+            content: [{ type: "text", text: `Subsession ${result.sessionId} [${result.status}] in ${result.cwd}. No persistent pause was set.` }],
+            details: result,
+          };
+        }
+        case "resume": {
+          const result = await deps.resume(parentSessionId, params.sessionId, params.prompt, parentSessionFile);
+          return {
+            content: [{ type: "text", text: `Resumed subsession ${result.sessionId} [${result.status}] in ${result.cwd}.` }],
+            details: result,
+          };
+        }
+        case "archive":
+          await deps.archive(parentSessionId, params.sessionId, parentSessionFile);
+          return {
+            content: [{ type: "text", text: `Archived subsession ${params.sessionId}.` }],
+            details: { sessionId: params.sessionId, archived: true },
+          };
+      }
+    },
+  });
+
   const yieldTool = defineTool<typeof YieldToSubsessionsParams, SubsessionJoinResult>({
     name: "yield_to_subsessions",
     // Nested tools cannot terminate the outer agent run.
@@ -332,5 +383,5 @@ export function createSubsessionToolDefinitions(spawningCwd: string, deps: Subse
     },
   });
 
-  return [spawnTool, listTool, checkTool, readTool, yieldTool];
+  return [spawnTool, listTool, checkTool, readTool, manageTool, yieldTool];
 }

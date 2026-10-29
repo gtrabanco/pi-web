@@ -29,6 +29,7 @@ function daemonCollaborators(patch: Partial<SessionServiceDependencyInput> = {})
     catalogRefreshStatus: { isRefreshInFlight: () => false },
     config: { read: () => Promise.reject(new Error("config read not expected in this test")) },
     subsessionsEnabled: false,
+    messageTargets: { resolveSpawnTarget: () => Promise.reject(new Error("messaging not expected in this test")) },
     askUserEnabled: true,
     appendSystemPromptSections: [],
     extensionDialogsTimeoutMs: 300_000,
@@ -93,6 +94,14 @@ describe("sessiond session service dependency assembly", () => {
     expect(withoutSpawnTargets.subsessionsEnabled).toBe(false);
     expect(withSpawnTargets.spawnTargets).toBe(spawnTargets);
     expect(withSpawnTargets.subsessionsEnabled).toBe(true);
+  });
+
+  it("retains the messaging boundary independently of spawning and subsession flags", () => {
+    const messageTargets = { resolveSpawnTarget: () => Promise.reject(new Error("not used")) };
+    const deps = sessionServiceDependencies(daemonCollaborators({ messageTargets, subsessionsEnabled: false }));
+    expect(deps.messageTargets).toBe(messageTargets);
+    expect(deps.spawnTargets).toBeUndefined();
+    expect(deps.subsessionsEnabled).toBe(false);
   });
 
   it("passes session-local event and companion bindings through to the session service", () => {
