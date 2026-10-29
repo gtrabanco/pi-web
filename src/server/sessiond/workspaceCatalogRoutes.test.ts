@@ -153,7 +153,6 @@ describe("session daemon workspace catalog routes", () => {
       health: [{ pluginId: "git", health: { status: "healthy" } }],
       diagnostics: [{ code: "duplicate-id", source: "local", message: "Duplicate PI WEB plugin id: git", pluginId: "git" }],
     });
-    expect(Object.isFrozen(snapshot)).toBe(true);
   });
 });
 

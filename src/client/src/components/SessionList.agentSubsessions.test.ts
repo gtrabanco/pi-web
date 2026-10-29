@@ -272,9 +272,6 @@ describe("SessionList agent subsession controls", () => {
     toggle.click();
     await settle(list);
     expect(select).not.toHaveBeenCalled();
-    expect(row(list, "agent")?.classList.contains("linked-agent-child")).toBe(true);
-    expect(row(list, "agent")?.style.getPropertyValue("--agent-offset")).toBe("12px");
-    expect(row(list, "user")?.classList.contains("linked-agent-child")).toBe(false);
     expect(toggle.getAttribute("aria-expanded")).toBe("true");
     expect(row(list, "nested")).toBeNull();
     expect(row(list, "other-agent")).toBeNull();

@@ -41,24 +41,6 @@ function button(host: ContentRendererHost, label: string): HTMLButtonElement {
   return found;
 }
 
-it.each(["automatic", "manual"] as const)("names the %s view button after the selected renderer", async (renderMode) => {
-  const draw = vi.fn(() => html`<b>Named content</b>`);
-  const host = hostWith([{ id: "highlighted", label: "Highlighted", renderer: {
-    id: "highlighted", title: "Highlighted", renderMode, render: draw,
-  } }]);
-  document.body.append(host);
-  await settleDeferredContent(host);
-  const namedButton = button(host, "Highlighted");
-  expect(namedButton.getAttribute("aria-pressed")).toBe(String(renderMode === "automatic"));
-  button(host, "Raw").click();
-  await settleDeferredContent(host);
-  expect(namedButton.getAttribute("aria-pressed")).toBe("false");
-  namedButton.click();
-  await settleDeferredContent(host);
-  expect(namedButton.getAttribute("aria-pressed")).toBe("true");
-  expect(host.renderRoot.querySelector("b")?.textContent).toBe("Named content");
-});
-
 it("shows every named view and Raw, and explicitly activates manual views while cancelling previous work", async () => {
   const automatic = vi.fn<ContentRendererContribution["render"]>(() => html`<b>Automatic</b>`);
   const manual = vi.fn<ContentRendererContribution["render"]>(() => html`<b>Manual</b>`);

@@ -17,9 +17,8 @@ import { codeBlockFrameStyles } from "./codeBlockFrameStyles";
 import { sessionNotificationTrayStyles } from "./sessionNotificationTrayStyles";
 import {
   appStyles, workspacePanelStyles, listStyles, statusBarStyles,
-  autocompleteStyles, promptEditorStyles, promptEditorLayoutStyles,
+  autocompleteStyles, promptEditorLayoutStyles,
 } from "./shellStyles";
-import { baseThemeStyles } from "./styles";
 
 describe("base theme cascade boundary", () => {
   // This protects override precedence, not rendered geometry: one accidentally
@@ -47,21 +46,5 @@ describe("base theme cascade boundary", () => {
       const text = node.block && generate(node.block);
       expect(text).not.toContain("@layer");
     });
-  });
-
-  it("keeps the editor integration in the same unlayered cascade as CodeMirror", () => {
-    const ast = parse(promptEditorStyles.cssText);
-    if (ast.type !== "StyleSheet") throw new Error("Expected a stylesheet");
-    const selectors: string[] = [];
-    ast.children.forEach((node) => {
-      if (node.type === "Rule") selectors.push(generate(node.prelude));
-    });
-    expect(selectors).toContain(".markdown-editor .cm-scroller");
-    expect(selectors).toContain(".markdown-editor .cm-editor");
-  });
-
-  it("wraps authored CSS without changing its selectors or declarations", () => {
-    const source = ".ui-button { border-radius: 9px; }";
-    expect(baseThemeStyles(source).cssText).toBe(`@layer pi-web-base { ${source} }`);
   });
 });

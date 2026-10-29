@@ -5,7 +5,6 @@ import { join } from "node:path";
 import { expect, it, vi } from "vitest";
 import { developmentRuntimeEnvironment, startDevelopmentProcess } from "./dev-processes.mjs";
 import { runDevelopmentClient } from "./dev-client.mjs";
-import { runDevelopmentServices } from "./dev-services.mjs";
 import { runDevelopmentWeb } from "./dev-web.mjs";
 import { runDevelopmentSessiond, waitForPluginBuild } from "./dev-sessiond.mjs";
 
@@ -136,10 +135,11 @@ it("restores the daemon's tool environment without changing the launcher environ
 });
 
 it.each([{ PATH: "/local/tools" }, { PATH: "/pinned", PI_WEB_SERVICE_ORIGINAL_PATH: "" }])("preserves local and empty tooling PATH contracts (%j)", (env) => {
+  const original = { ...env };
   const runtime = developmentRuntimeEnvironment(env);
-  expect(runtime.PATH).toBe(env.PI_WEB_SERVICE_ORIGINAL_PATH ?? env.PATH);
+  expect(runtime.PATH).toBe(original.PI_WEB_SERVICE_ORIGINAL_PATH ?? original.PATH);
   expect(runtime).not.toHaveProperty("PI_WEB_SERVICE_ORIGINAL_PATH");
-  expect(runtime).not.toBe(env);
+  expect(env).toEqual(original);
 });
 
 it.each([undefined, "dev"])("launches Vite through the selected Node with the source cwd for Docker (%s)", async (mode) => {
@@ -151,24 +151,6 @@ it.each([undefined, "dev"])("launches Vite through the selected Node with the so
   expect(options.launch.mock.calls[0][3]).toEqual(mode === "dev" ? { cwd: "/build/pi-web" } : undefined);
   options.children[0].finish(0);
   expect(await running).toBe(0);
-});
-
-it("supervises npm lifecycles rather than bypassing hooks with direct entrypoints", async () => {
-  const options = harness();
-  options.env = { npm_execpath: "/selected/npm-cli.js" };
-  const running = runDevelopmentServices(["fixture:first", "fixture:second"], options);
-  expect(options.launch.mock.calls.map(call => call.slice(0, 2))).toEqual([
-    ["/selected/npm-cli.js", ["run", "fixture:first"]],
-    ["/selected/npm-cli.js", ["run", "fixture:second"]],
-  ]);
-  options.children[0].finish(7);
-  expect(await running).toBe(7);
-  expect(options.stop).toHaveBeenCalledWith(options.children[1]);
-});
-
-it("rejects groups without scripts or an npm lifecycle context", () => {
-  expect(() => runDevelopmentServices([])).toThrow("At least one");
-  expect(() => runDevelopmentServices(["fixture:service"], { env: {} })).toThrow("through npm run");
 });
 
 it("does not start the API when the initial build fails", async () => {

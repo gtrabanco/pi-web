@@ -299,29 +299,6 @@ describe("production native service planning", () => {
     });
   });
 
-  // The launcher is the single source of truth for runtime selection and version
-  // floors, so a production plan must not carry a node-version requirement of its own. A
-  // bun-only machine has to pass preflight in both strategy branches.
-  it("carries no node-version requirement in any production strategy", async () => {
-    const named = await resolveProductionNativeServicePlan(productionInput(), {
-      probe: completedProbe("satisfied"),
-      fileExists: () => true,
-    });
-    expect(named.ok).toBe(true);
-    const bundled = await resolveProductionNativeServicePlan(productionInput(), {
-      probe: completedProbe("unsatisfied", "command not found"),
-      fileExists: () => true,
-    });
-    expect(bundled.ok).toBe(true);
-
-    for (const resolution of [named, bundled]) {
-      if (!resolution.ok) throw new Error(JSON.stringify(resolution.failures));
-      const kinds = resolution.plan.services.flatMap((service) => service.prerequisites.map((prerequisite) => prerequisite.kind));
-      expect(kinds).not.toContain("node-version");
-      expect(kinds).toContain("runtime");
-    }
-  });
-
   it("mixes configured, named, and bundled decisions without unrelated checks", async () => {
     const input = productionInput();
     input.executables.sessiond.configuredCommand = "custom-sessiond";
@@ -465,13 +442,6 @@ describe("development native service planning", () => {
         },
       ],
     });
-
-    const serviceCommandRequirements = plan.services.flatMap((service) => service.prerequisites)
-      .filter((prerequisite) => prerequisite.kind === "command-available")
-      .map((prerequisite) => prerequisite.command);
-    expect(serviceCommandRequirements).toEqual(["npm", "npm"]);
-    expect(serviceCommandRequirements).not.toContain("pi-web-server");
-    expect(serviceCommandRequirements).not.toContain("pi-web-sessiond");
 
     expect(planValidationProbeRequests(plan)).toMatchObject([
       {

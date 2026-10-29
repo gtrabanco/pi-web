@@ -6,7 +6,6 @@ import { PromptEditor } from "../../src/client/src/components/PromptEditor";
 import { MachineSwitcher } from "../../src/client/src/components/MachineSwitcher";
 import { ModalSurface } from "../../src/client/src/components/ModalSurface";
 import { MessageActionsMenu } from "../../src/client/src/components/chat/MessageActionsMenu";
-import { uiButtonStyles, uiToolbarStyles } from "../../src/client/src/components/ui/controlStyles";
 
 api.commands = () => Promise.resolve([{ name: "tree", source: "builtin" }]);
 api.files = () => Promise.resolve([{ path: "README.md", kind: "tracked" }]);
@@ -78,16 +77,13 @@ render(html`<style>
   .clip { display: flex; align-items: center; gap: 10px; position: relative; transform: translateZ(0); overflow: hidden; height: 56px; padding: 8px; border: 1px solid #888; }
   machine-switcher { width: 240px; flex: 0 0 240px; }
 </style><div class="scroll"><div class="scroll-content"><div class="clip">${clippedSwitcher}${messageActions}</div></div></div>`, scrollingRoot);
-const toolbars = document.createElement("div");
-toolbars.id = "shared-toolbars";
-const toolbarRoot = toolbars.attachShadow({ mode: "open" });
-render(html`<style>${uiButtonStyles.cssText}${uiToolbarStyles.cssText}
-  :host { --pi-border-muted: #555; display: block; }
-</style>
-  <section class="ui-toolbar"><button class="ui-button">Panel action</button></section>
-  <section class="ui-toolbar ui-toolbar--borderless"><button class="ui-button">Embedded action</button></section>
-`, toolbarRoot);
+// Completion positioning measures the outermost shadow host as the app layout.
+// Match PiWebApp's full-height fixed shell rather than making the editor itself
+// the outermost host and accidentally constraining its menu to the input box.
 const root = document.createElement("main");
+root.style.cssText = "position: fixed; inset: 0; height: 100dvh; overflow: hidden;";
+const application = root.attachShadow({ mode: "open" });
+application.append(style.cloneNode(true));
 document.body.append(root);
 render(html`
   <div class="toolbar">
@@ -99,8 +95,7 @@ render(html`
   </div>
   ${layout}
   ${scrollingHost}
-  ${toolbars}
-`, root);
+`, application);
 await Promise.all([layout.updateComplete, editor.updateComplete, clippedSwitcher.updateComplete, messageActions.updateComplete]);
 
 declare global {

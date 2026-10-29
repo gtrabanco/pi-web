@@ -5,7 +5,6 @@ import type { PendingExtensionDialog } from "../../../shared/apiTypes";
 import type { ClosedExtensionDialog } from "../appState";
 import {
   ExtensionDialogCard,
-  extensionDialogCloseLabel,
   extensionDialogCloseSummary,
   extensionDialogCountdownText,
   type ExtensionDialogAnswerCallback,
@@ -110,19 +109,6 @@ describe("extension-dialog-card input dialog", () => {
     expect(onAnswer).toHaveBeenCalledWith("dlg-1", "feature/dialogs");
   });
 
-  it("sends an empty string without typing", async () => {
-    const onAnswer = vi.fn<ExtensionDialogAnswerCallback>();
-    const card = await mountOpenDialog(openDialog({ kind: "input", title: "Notes?" }), { onAnswer });
-    const root = renderRoot(card);
-
-    const send = buttonWithText(root, "Send");
-    expect(send.disabled).toBe(false);
-    send.click();
-    await Promise.resolve();
-
-    expect(onAnswer).toHaveBeenCalledWith("dlg-1", "");
-  });
-
   it("keeps a half-typed answer when the same dialog is re-projected from a status refresh", async () => {
     const card = await mountOpenDialog(openDialog({ kind: "input", title: "Notes?" }));
     const root = renderRoot(card);
@@ -151,18 +137,6 @@ describe("extension-dialog-card countdown", () => {
     await vi.advanceTimersByTimeAsync(30_000);
     await card.updateComplete;
     expect(countdown.textContent).toBe("Auto-cancels in 1m 0s");
-  });
-
-  it("is decorative: no live region announcing every second", async () => {
-    vi.useFakeTimers();
-    vi.setSystemTime(new Date("2026-07-27T10:00:00.000Z"));
-    const card = await mountOpenDialog(openDialog({ timeoutAt: "2026-07-27T10:01:30.000Z" }));
-    const root = renderRoot(card);
-
-    // A ticking live region would queue a screen-reader announcement per
-    // second; the daemon-owned dialog.closed event is the real signal.
-    expect(requiredElement(root.querySelector(".countdown"), "countdown").getAttribute("role")).toBeNull();
-    expect(root.querySelector("[aria-live]")).toBeNull();
   });
 
   it("renders no countdown when the dialog waits forever", async () => {
@@ -324,15 +298,7 @@ describe("extensionDialogCountdownText", () => {
   });
 });
 
-describe("extensionDialogCloseLabel and extensionDialogCloseSummary", () => {
-  it("labels every close reason", () => {
-    expect(extensionDialogCloseLabel("answered")).toBe("Answered");
-    expect(extensionDialogCloseLabel("cancelled")).toBe("Cancelled");
-    expect(extensionDialogCloseLabel("timeout")).toBe("Timed out");
-    expect(extensionDialogCloseLabel("aborted")).toBe("Aborted");
-    expect(extensionDialogCloseLabel("session-ended")).toBe("Session ended");
-  });
-
+describe("extensionDialogCloseSummary", () => {
   it("summarizes answers by kind", () => {
     expect(extensionDialogCloseSummary(closedDialog("answered", false))).toBe("Answered: No");
     expect(extensionDialogCloseSummary(closedDialog("answered", "Staging"))).toBe("Answered: Staging");

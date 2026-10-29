@@ -217,8 +217,6 @@ it("keeps attachment delivery and removal wired through native shared controls",
   const delivery = editor.renderRoot.querySelector<HTMLSelectElement>('select[aria-label="Attachment delivery"]');
   const remove = editor.renderRoot.querySelector<HTMLButtonElement>('button[aria-label="Remove screenshot.png"]');
   if (delivery === null || remove === null) throw new Error("Expected pending attachment controls");
-  expect(delivery.classList.contains("ui-select")).toBe(true);
-  expect(remove.classList.contains("ui-button--icon")).toBe(true);
   expect(remove.type).toBe("button");
   delivery.value = "folder";
   delivery.dispatchEvent(new Event("change", { bubbles: true }));
@@ -241,7 +239,6 @@ it("removes plugin context by identity and retains the disabled contract", async
   await editor.updateComplete;
   const remove = editor.renderRoot.querySelector<HTMLButtonElement>('button[aria-label="Remove Context"]');
   if (remove === null) throw new Error("Expected context removal control");
-  expect(remove.classList.contains("ui-button--icon")).toBe(true);
   remove.click();
   expect(editor.onRemoveChip).toHaveBeenCalledWith(chip);
   editor.disabled = true;

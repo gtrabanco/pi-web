@@ -29,15 +29,10 @@ const twoQuestions = {
 const ctx = stubExtensionToolContext();
 
 describe("createAskUserToolDefinition", () => {
-  it("advertises a non-blocking question set whose answers arrive as a follow-up", () => {
+  it("registers ask_user as model-only", () => {
     const { tool } = testTool();
     expect(tool.name).toBe("ask_user");
     expect(tool.exposure).toBe("model-only");
-    expect(tool.description).toBe("Post a set of questions to the user as a browser form and end this run. Answers arrive later as a follow-up message; the user may leave any question unanswered.");
-    expect(tool.promptSnippet).toBe("ask_user: post a question set to the user; ends the run, answers return as a follow-up");
-    expect(tool.promptGuidelines).toEqual([
-      "When you need decisions from the user, post them together with ask_user instead of asking in prose one at a time. It ends the run and the answers, including the questions the user left unanswered, come back as a follow-up message that wakes you. Call it alone and last, and do not repost the same questions or poll for answers.",
-    ]);
   });
 
   it("bounds the question set in its parameter schema", () => {

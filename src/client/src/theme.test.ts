@@ -87,22 +87,10 @@ describe("resolveThemePreference", () => {
     expect(resolution.selectedThemePair).toBeUndefined();
   });
 
-  it("falls back to Classic when the selected theme does not exist", () => {
-    const resolution = resolveThemePreference({
-      themes,
-      themePairs,
-      preference: { themeId: "plugin:missing", auto: false },
-      prefersLight: true,
-    });
-
-    expect(resolution.selectedTheme?.id).toBe("themes:classic");
-    expect(resolution.activeTheme?.id).toBe("themes:classic");
-  });
-
-  it("falls back to Classic without mutating a missing selected theme preference", () => {
+  it.each([false, true])("falls back to Classic without mutating a missing theme preference (auto: %s)", (auto) => {
     const preference = {
       themeId: "plugin:missing",
-      auto: true,
+      auto,
     } satisfies { themeId: QualifiedContributionId; auto: boolean };
     const resolution = resolveThemePreference({
       themes,
@@ -113,7 +101,7 @@ describe("resolveThemePreference", () => {
 
     expect(resolution.selectedTheme?.id).toBe("themes:classic");
     expect(resolution.activeTheme?.id).toBe("themes:classic");
-    expect(preference).toEqual({ themeId: "plugin:missing", auto: true });
+    expect(preference).toEqual({ themeId: "plugin:missing", auto });
   });
 
   it("re-resolves a plugin default after its theme becomes available without changing the preference", () => {

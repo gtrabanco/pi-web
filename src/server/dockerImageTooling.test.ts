@@ -51,12 +51,9 @@ source "$SERVICE_TEST_LAUNCHER" "$SERVICE_TEST_ENTRY"
     }
   });
 
-  it("uses npm lifecycles for development and direct entrypoints for installed services", async () => {
-    const compose = await readFile("docker/compose.dev.yml", "utf8");
-    expect(compose).toContain('["pi-web-npm", "run", "start:sessiond"]');
-    expect(compose).toContain('["pi-web-npm", "run", "dev:ui"]');
-    expect(compose).not.toContain("scripts/dev-web.mjs");
-    expect(compose).not.toContain("node_modules/typescript");
+  it("starts installed services directly through the pinned interpreter", async () => {
+    // Development lifecycle wiring is checked against effective Compose config
+    // in dockerDevCompose.test.ts, rather than its YAML source spelling.
     const runtime = await readFile("docker/compose.yml", "utf8");
     // Public npm bins are shell launchers; the pinned Node wrapper needs JS.
     const serverCommand = '["pi-web-service", "/usr/local/lib/node_modules/@jmfederico/pi-web/dist/server/index.js"]';
@@ -130,6 +127,7 @@ source "$NPM_TEST_LAUNCHER" run fixture:service -- --fixture-argument
     expect(compose).not.toMatch(/chown\s+-R/u);
     const dockerfile = await readFile("docker/Dockerfile.dev", "utf8");
     const hooks = dockerfile.indexOf("for script in /tmp/pi-web-custom-image.d/*.sh");
+    expect(hooks).toBeGreaterThanOrEqual(0);
     expect(dockerfile.indexOf("/opt/pi-web-dev-dependencies/generation")).toBeGreaterThan(hooks);
     expect(dockerfile.indexOf("find /opt/pi-web-dev-dependencies/node_modules")).toBeGreaterThan(hooks);
   });

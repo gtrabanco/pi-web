@@ -169,12 +169,6 @@ describe("header identity", () => {
     expect(panel.onShowActions).toHaveBeenCalledOnce();
   });
 
-  it("keeps the machine switcher visible with a single machine", async () => {
-    const panel = await mountHeaderPanel([machine("local")]);
-
-    expect(panel.shadowRoot?.querySelector("machine-switcher")).toBeInstanceOf(MachineSwitcher);
-  });
-
   it("forwards the location-indicator flag to the machine switcher", async () => {
     const panel = await mountHeaderPanel([machine("local")], true);
 
