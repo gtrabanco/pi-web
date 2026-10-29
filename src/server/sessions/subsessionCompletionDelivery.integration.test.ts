@@ -58,6 +58,9 @@ describe("subsession completion delivery through native Pi", () => {
       settingsManager, resourceLoader: loader, modelRuntime, model: testModel(), tools: ["yield_to_subsessions", "check_subsession", "nested_check"],
       customTools: [...createSubsessionToolDefinitions(directory, {
         spawn: (input) => hosted.spawnSubsession(input),
+        stop: (...args) => hosted.stopSubsession(...args),
+        resume: (...args) => hosted.resumeSubsession(...args),
+        archive: (...args) => hosted.archiveSubsession(...args),
         list: (...args) => hosted.listSubsessions(...args),
         join: (...args) => hosted.joinSubsessions(...args),
         check: (...args) => hosted.checkSubsession(...args),

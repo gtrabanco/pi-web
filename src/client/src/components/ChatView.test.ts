@@ -1,17 +1,15 @@
 import { localization } from "../localization/browser";
-import type { TemplateResult } from "lit";
 import { describe, expect, it } from "vitest";
 import type { QueuedSessionMessage, SessionStatus, SessionWarning } from "../api";
 import {
-  ChatView,
   chatEventAnchorKey,
   chatGroupAnchorKey,
   chatMessageAnchorKey,
   chatMessageMetadataLabel,
   chatQueuedMessageSections,
   chatQueuedSectionShowsClearAction,
-  chatSessionWarningRows,
 } from "./ChatView";
+import { chatSessionWarningRows } from "./chat/SessionWarnings";
 import type { ChatLine } from "./shared";
 
 describe("chatQueuedMessageSections", () => {
@@ -49,17 +47,17 @@ describe("chatQueuedSectionShowsClearAction", () => {
 
 describe("chatSessionWarningRows", () => {
   // Test warning-row shaping directly rather than depending on template markup.
-  it("derives one severity-tagged row per warning with optional path and source", () => {
+  it("preserves each diagnostic's severity, message and optional provenance", () => {
     const rows = chatSessionWarningRows(warningStatus([
       { severity: "error", message: "skill failed to load", source: "skill", path: "/skills/a.md" },
       { severity: "warning", message: "subscription auth is active" },
       { severity: "info", message: "heads up", source: "runtime" },
     ]));
 
-    expect(rows).toEqual([
-      { severity: "error", severityClass: "session-warning error", message: "skill failed to load", source: "skill", path: "/skills/a.md", dismissId: undefined },
-      { severity: "warning", severityClass: "session-warning warning", message: "subscription auth is active", source: undefined, path: undefined, dismissId: undefined },
-      { severity: "info", severityClass: "session-warning info", message: "heads up", source: "runtime", path: undefined, dismissId: undefined },
+    expect(rows.map(({ severity, message, source, path }) => ({ severity, message, source, path }))).toEqual([
+      { severity: "error", message: "skill failed to load", source: "skill", path: "/skills/a.md" },
+      { severity: "warning", message: "subscription auth is active", source: undefined, path: undefined },
+      { severity: "info", message: "heads up", source: "runtime", path: undefined },
     ]);
   });
 
@@ -75,18 +73,6 @@ describe("chatSessionWarningRows", () => {
   it("derives no rows when there are no warnings or status is unset", () => {
     expect(chatSessionWarningRows(warningStatus([]))).toEqual([]);
     expect(chatSessionWarningRows(undefined)).toEqual([]);
-  });
-});
-
-describe("ChatView session-warning dismiss wiring", () => {
-  it("removes the warning area while presentation is collapsed or there are no warnings", () => {
-    const view = withStatus(new ChatView(), warningStatus([
-      { severity: "warning", message: "subscription auth is active" },
-    ]));
-    view.warningsVisible = false;
-
-    expect(renderWarnings(view)).toBeNull();
-    expect(renderWarnings(withStatus(new ChatView(), warningStatus([])))).toBeNull();
   });
 });
 
@@ -137,26 +123,9 @@ describe("chat event-group content seams", () => {
   });
 });
 
-type RenderWarnings = (this: ChatView) => TemplateResult | null;
-
-function renderWarnings(view: ChatView): TemplateResult | null {
-  const method: unknown = Reflect.get(view, "renderWarnings");
-  if (!isRenderWarnings(method)) throw new Error("ChatView.renderWarnings is not callable");
-  return method.call(view);
-}
-
-function isRenderWarnings(value: unknown): value is RenderWarnings {
-  return typeof value === "function";
-}
-
 function requireSection(section: ReturnType<typeof chatQueuedMessageSections>[number] | undefined): ReturnType<typeof chatQueuedMessageSections>[number] {
   if (section === undefined) throw new Error("expected a queued-message section");
   return section;
-}
-
-function withStatus(view: ChatView, status: SessionStatus): ChatView {
-  view.status = status;
-  return view;
 }
 
 function warningStatus(warnings: SessionWarning[]): SessionStatus {

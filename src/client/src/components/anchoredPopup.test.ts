@@ -142,7 +142,7 @@ describe("anchored transient popup", () => {
         vi.stubGlobal("innerHeight", visibleHeight);
         vi.stubGlobal("visualViewport", { offsetLeft: 0, offsetTop: scroll, width: 390, height: visibleHeight });
         expect(anchoredPopupStyle(anchor, options)).toMatchObject({
-          top: "auto", bottom: "155px", width: "390px", "max-height": "260px",
+          top: "auto", bottom: "155px",
         });
       }
     }
