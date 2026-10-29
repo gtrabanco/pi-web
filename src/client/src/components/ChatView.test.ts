@@ -48,10 +48,7 @@ describe("chatQueuedSectionShowsClearAction", () => {
 });
 
 describe("chatSessionWarningRows", () => {
-  // Warning-row content (severity class, message, path, source, dismiss
-  // capability, ordering) is derived by a pure exported seam rather than scraped
-  // from rendered `TemplateResult` markup, per the testing-guide rule that
-  // TemplateResult inspection is not for general content assertions.
+  // Test warning-row shaping directly rather than depending on template markup.
   it("derives one severity-tagged row per warning with optional path and source", () => {
     const rows = chatSessionWarningRows(warningStatus([
       { severity: "error", message: "skill failed to load", source: "skill", path: "/skills/a.md" },
