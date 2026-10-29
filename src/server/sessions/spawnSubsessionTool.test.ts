@@ -21,6 +21,9 @@ function tools(deps: Partial<SubsessionToolDeps>) {
   const list = deps.list ?? vi.fn(() => Promise.resolve([]));
   const full: SubsessionToolDeps = {
     spawn: deps.spawn ?? vi.fn(() => Promise.resolve({ sessionId: "x", cwd: "/repos/a" })),
+    archive: deps.archive ?? vi.fn(() => Promise.resolve()),
+    stop: deps.stop ?? vi.fn(() => Promise.resolve({ sessionId: "x", cwd: "/repos/a", status: "idle" as const })),
+    resume: deps.resume ?? vi.fn(() => Promise.resolve({ sessionId: "x", cwd: "/repos/a", status: "working" as const })),
     list,
     join: deps.join ?? (async (parentId, parentFile) => ({ subsessions: await list(parentId, parentFile), completions: [] })),
     check: deps.check ?? vi.fn(() => Promise.resolve({ sessionId: "x", cwd: "/repos/a", status: "idle" as const, finalText: "", messageCount: 0 })),
@@ -37,6 +40,7 @@ function tools(deps: Partial<SubsessionToolDeps>) {
     list: find("list_subsessions"),
     check: find("check_subsession"),
     read: find("read_subsession"),
+    manage: find("manage_subsession"),
     yield: find("yield_to_subsessions"),
   };
 }
@@ -51,10 +55,21 @@ function firstText(content: readonly (TextContent | ImageContent)[]): string {
 }
 
 describe("createSubsessionToolDefinitions", () => {
+  it("archives using the live parent identity without accepting a caller-supplied parent", async () => {
+    const archive = vi.fn(() => Promise.resolve());
+    const result = await tools({ archive }).manage.execute("archive-1", { action: "archive", sessionId: "child-1" }, undefined, undefined, ctxFor("parent-1", "/sessions/parent-1.jsonl"));
+    expect(archive).toHaveBeenCalledWith("parent-1", "child-1", "/sessions/parent-1.jsonl");
+    expect(result.details).toEqual({ sessionId: "child-1", archived: true });
+  });
+
+  it("reports archive failure rather than claiming success", async () => {
+    const archive = vi.fn(() => Promise.reject(new Error("Stop current session activity before archiving")));
+    await expect(tools({ archive }).manage.execute("archive-1", { action: "archive", sessionId: "child-1" }, undefined, undefined, ctxFor("parent-1", undefined))).rejects.toThrow("Stop current session activity before archiving");
+  });
   it("keeps run-ending yield model-only while other subsession tools remain callable", () => {
     const definitions = tools({});
     expect(definitions.yield.exposure).toBe("model-only");
-    for (const name of ["spawn", "list", "check", "read"] as const) {
+    for (const name of ["spawn", "list", "check", "read", "manage"] as const) {
       expect(definitions[name].exposure ?? "direct").toBe("direct");
     }
   });
@@ -198,6 +213,84 @@ describe("createSubsessionToolDefinitions", () => {
     for (const thinkingLevel of ["unknown", "", null, 1]) {
       expect(Check(tool.parameters, { prompt: "work", thinkingLevel })).toBe(false);
     }
+  });
+
+  it("requires a closed action and child target without exposing parent identity", () => {
+    const { manage } = tools({});
+    expect(manage.parameters).not.toHaveProperty(["properties", "parentSessionId"]);
+    expect(manage.parameters).not.toHaveProperty(["properties", "parentSessionFile"]);
+    for (const action of ["stop", "resume", "archive"]) {
+      expect(Check(manage.parameters, { action, sessionId: "child-1" })).toBe(true);
+    }
+    for (const params of [{}, { sessionId: "child-1" }, { action: "stop" }, { action: "delete", sessionId: "child-1" }, { action: "resume", sessionId: "child-1", prompt: 1 }]) {
+      expect(Check(manage.parameters, params)).toBe(false);
+    }
+    expect(Check(manage.parameters, { action: "resume", sessionId: "child-1", prompt: "continue" })).toBe(true);
+  });
+
+  it.each(["stop", "archive"] as const)("rejects prompt with %s before dispatching any action", async (action) => {
+    const stop = vi.fn<SubsessionToolDeps["stop"]>();
+    const resume = vi.fn<SubsessionToolDeps["resume"]>();
+    const archive = vi.fn<SubsessionToolDeps["archive"]>();
+    await expect(tools({ stop, resume, archive }).manage.execute("invalid", { action, sessionId: "child-1", prompt: "must not apply" }, undefined, undefined, ctxFor("parent-1", undefined))).rejects.toThrow("prompt is only supported with the resume action");
+    expect(stop).not.toHaveBeenCalled();
+    expect(resume).not.toHaveBeenCalled();
+    expect(archive).not.toHaveBeenCalled();
+  });
+
+  it("manage_subsession stop takes parent identity from each live context and returns the summary without yielding", async () => {
+    const summary = { sessionId: "child-1", cwd: "/repos/a", status: "idle" as const };
+    const stop = vi.fn<SubsessionToolDeps["stop"]>(() => Promise.resolve(summary));
+    const { manage: tool } = tools({ stop });
+    const params = { action: "stop" as const, sessionId: "child-1", parentSessionId: "forged", parentSessionFile: "/forged.jsonl" };
+
+    const result = await tool.execute("stop-1", params, undefined, undefined, ctxFor("parent-1", "/sessions/parent-1.jsonl"));
+    await tool.execute("stop-2", params, undefined, undefined, ctxFor("parent-2", undefined));
+
+    expect(stop).toHaveBeenNthCalledWith(1, "parent-1", "child-1", "/sessions/parent-1.jsonl");
+    expect(stop).toHaveBeenNthCalledWith(2, "parent-2", "child-1", undefined);
+    expect(result.details).toEqual(summary);
+    expect(firstText(result.content)).toContain("child-1 [idle]");
+    expect(result.terminate).toBeUndefined();
+  });
+
+  it.each([undefined, "Continue with the review"])("manage_subsession resume forwards prompt %s in the existing child scope", async (prompt) => {
+    const summary = { sessionId: "child-1", cwd: "/repos/a", status: "working" as const };
+    const resume = vi.fn<SubsessionToolDeps["resume"]>(() => Promise.resolve(summary));
+    const { manage: tool } = tools({ resume });
+    const params = {
+      action: "resume" as const,
+      sessionId: "child-1",
+      ...(prompt === undefined ? {} : { prompt }),
+      parentSessionId: "forged",
+      parentSessionFile: "/forged.jsonl",
+    };
+
+    const result = await tool.execute("resume-1", params, undefined, undefined, ctxFor("parent-1", "/sessions/parent-1.jsonl"));
+    await tool.execute("resume-2", params, undefined, undefined, ctxFor("parent-2", undefined));
+
+    expect(resume).toHaveBeenNthCalledWith(1, "parent-1", "child-1", prompt, "/sessions/parent-1.jsonl");
+    expect(resume).toHaveBeenNthCalledWith(2, "parent-2", "child-1", prompt, undefined);
+    expect(result.details).toEqual(summary);
+    expect(firstText(result.content)).toContain("child-1 [working]");
+    expect(result.terminate).toBeUndefined();
+  });
+
+  it.each(["stop", "resume", "archive"] as const)("manage_subsession %s propagates direct-child authorization errors", async (action) => {
+    const error = new Error("Session child-9 is not one of your direct subsessions");
+    const reject = vi.fn(() => Promise.reject(error));
+    const tool = tools({ [action]: reject }).manage;
+
+    await expect(tool.execute("control", { action, sessionId: "child-9" }, undefined, undefined, ctxFor("parent-1", undefined)))
+      .rejects.toBe(error);
+  });
+
+  it("manage_subsession resume propagates an already-running rejection without reporting success", async () => {
+    const error = new Error("Subsession child-1 is already running");
+    const { manage: tool } = tools({ resume: vi.fn(() => Promise.reject(error)) });
+
+    await expect(tool.execute("resume", { action: "resume", sessionId: "child-1", prompt: "continue" }, undefined, undefined, ctxFor("parent-1", undefined)))
+      .rejects.toBe(error);
   });
 
   it("list_subsessions reports the caller's subsessions and their status", async () => {
