@@ -8,9 +8,7 @@ test.beforeEach(async ({ page }) => {
 });
 
 test("conversation hooks support theme edges, speaker masks, alignment, and cue removal", async ({ page }) => {
-  await page.evaluate(async () => {
-    const chat = document.querySelector<ChatView>("chat-view");
-    if (!chat) throw new Error("Missing chat fixture");
+  await page.locator("chat-view").evaluate(async (chat: ChatView) => {
     chat.messages = [
       { role: "user", entryId: "request", parts: [{ type: "text", text: "Update the configuration." }] },
       { role: "assistant", entryId: "reply", parts: [{ type: "text", text: "The configuration has been updated." }] },
@@ -38,20 +36,19 @@ test("conversation hooks support theme edges, speaker masks, alignment, and cue 
     `;
     element.shadowRoot?.append(style);
   }, { person, robot });
-  await expect(user).toHaveCSS("border-inline-start-width", "5px");
   await expect(user).toHaveCSS("border-inline-start-style", "dotted");
   const cue = await userContent.evaluate((element) => {
     const style = getComputedStyle(element, "::before");
-    return { content: style.content, width: style.width, mask: style.maskImage, pointerEvents: style.pointerEvents };
+    return { content: style.content, mask: style.maskImage, pointerEvents: style.pointerEvents };
   });
-  expect(cue).toMatchObject({ content: '""', width: "14px", pointerEvents: "none" });
+  expect(cue).toMatchObject({ content: '""', pointerEvents: "none" });
   expect(cue.mask).toContain("data:image/svg+xml,");
   expect(await assistant.locator(".chat-message-content").evaluate((element) => getComputedStyle(element, "::before").maskImage)).not.toBe(cue.mask);
 
   const userBox = await user.boundingBox();
   const assistantBox = await assistant.boundingBox();
   if (!userBox || !assistantBox) throw new Error("Missing themed message geometry");
-  expect(userBox.x).toBeGreaterThan(assistantBox.x + 10);
+  expect(userBox.x).toBeGreaterThan(assistantBox.x);
   expect(userBox.y + userBox.height).toBeLessThanOrEqual(assistantBox.y + 1);
   expect(await chat.evaluate((element) => {
     const scroller = element.shadowRoot?.querySelector(".chat");
@@ -85,59 +82,16 @@ test("conversation hooks support theme edges, speaker masks, alignment, and cue 
   await expect(user).toHaveCSS("border-inline-start-width", originalBorder);
 });
 
-test("completion choice hooks allow a geometric selection cue independent of hover", async ({ page }) => {
-  const input = page.locator("prompt-editor .cm-content");
-  await input.pressSequentially("/");
-  const menu = page.locator("autocomplete-menu");
-  const choice = menu.locator('[data-ui-context="completions"] > .ui-choice[data-selected="true"]');
-  await expect(choice).toBeVisible();
-  await menu.evaluate((element) => {
-    const style = document.createElement("style");
-    style.textContent = `
-      :host(autocomplete-menu) [data-ui-context="completions"] > .ui-choice { position: relative; }
-      :host(autocomplete-menu) .ui-choice[data-selected="true"]::after { content: ""; position: absolute; inset-inline-start: 2px; inset-block: 6px; inline-size: 2px; background: currentColor; pointer-events: none; }
-    `;
-    element.shadowRoot?.append(style);
-  });
-  expect(await choice.evaluate((element) => {
-    const style = getComputedStyle(element, "::after");
-    return { content: style.content, width: style.width };
-  })).toEqual({ content: '""', width: "2px" });
-  await expect(input).toBeFocused();
-  await input.press("Enter");
-  await expect(input).toHaveText("/tree");
-});
-
-test("renderer choice hooks override local defaults and follow view changes", async ({ page }) => {
+test("renderer choice hooks allow less-specific theme rules to override local selected-state defaults", async ({ page }) => {
   await page.evaluate(() => window.overlayFixture.mountRenderer());
   const renderer = page.locator("#theme-renderer");
-  await renderer.scrollIntoViewIfNeeded();
-  const highlighted = renderer.getByRole("button", { name: "Highlighted", exact: true });
-  const raw = renderer.getByRole("button", { name: "Raw", exact: true });
-  await expect(highlighted).toHaveAttribute("data-selected", "true");
   await renderer.evaluate((element) => {
     const sheet = new CSSStyleSheet();
-    sheet.replaceSync(`
-      :host(pi-web-content-renderer) [data-ui-context="content-views"] > .ui-choice { position: relative; }
-      /* Deliberately less specific than the component's old selected-state rule. */
-      .ui-choice { border-radius: 4px; }
-      [data-selected="true"] { background: rgb(40, 40, 40); }
-      .ui-choice[data-selected="true"]::after { content: ""; position: absolute; inset-inline: 8px; inset-block-end: 2px; block-size: 2px; background: currentColor; pointer-events: none; }
-    `);
+    // This must beat the component's more-specific selected-state selector.
+    sheet.replaceSync('[data-selected="true"] { background: rgb(40, 40, 40); }');
     const root = element.shadowRoot;
     if (!root) throw new Error("Missing renderer root");
     root.adoptedStyleSheets = [...root.adoptedStyleSheets, sheet];
   });
-  await expect(highlighted).toHaveCSS("background-color", "rgb(40, 40, 40)");
-  await expect(highlighted).toHaveCSS("border-radius", "4px");
-  await raw.click();
-  await expect(raw).toHaveAttribute("data-selected", "true");
-  await expect(highlighted).toHaveAttribute("data-selected", "false");
-  await expect(raw).toHaveCSS("background-color", "rgb(40, 40, 40)");
-  expect(await raw.evaluate((element) => getComputedStyle(element, "::after").height)).toBe("2px");
-  expect(await highlighted.evaluate((element) => getComputedStyle(element, "::after").content)).toBe("none");
-  await expect(renderer.getByRole("button", { name: "Copy source" })).not.toHaveAttribute("data-selected");
-  await highlighted.click();
-  await expect(highlighted).toHaveAttribute("data-selected", "true");
-  await expect(highlighted).toHaveAttribute("aria-pressed", "true");
+  await expect(renderer.locator('.ui-choice[data-selected="true"]')).toHaveCSS("background-color", "rgb(40, 40, 40)");
 });

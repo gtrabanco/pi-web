@@ -29,25 +29,23 @@ describe("project sidebar styling contract", () => {
     const row = rowFor(list, second.name);
     expect(section?.getAttribute("data-ui-context")).toBe("projects");
     expect(section?.getAttribute("data-collapsed")).toBe("false");
-    expect(section?.querySelector(".list-body.ui-nav-list")?.parentElement).toBe(section);
-    expect(row.matches(".action-row.ui-nav-row")).toBe(true);
-    expect(row.parentElement?.matches(".list-body.ui-nav-list")).toBe(true);
-    expect(row.querySelector(".action-main.ui-nav-row-main")?.parentElement).toBe(row);
-    expect(row.querySelector(".workspace-primary-label.ui-nav-row-label")?.textContent).toContain(second.name);
-    expect(row.querySelector("small.ui-nav-row-meta")?.textContent).toContain(second.path);
-    const actions = row.querySelector(".action-menu.ui-nav-row-actions");
+    expect(section?.querySelector(".ui-nav-list")).not.toBeNull();
+    expect(row.matches(".ui-nav-row")).toBe(true);
+    expect(row.querySelector(":scope > .ui-nav-row-main")).not.toBeNull();
+    expect(row.querySelector(".ui-nav-row-label")).not.toBeNull();
+    expect(row.querySelector(".ui-nav-row-meta")).not.toBeNull();
+    const actions = row.querySelector(":scope > .ui-nav-row-actions");
     expect(actions?.parentElement).toBe(row);
-    const trigger = actions?.querySelector<HTMLButtonElement>(".action-menu-toggle.ui-nav-row-action");
+    const trigger = actions?.querySelector<HTMLButtonElement>(".ui-nav-row-action");
     if (!trigger) throw new Error("Expected a row action");
     expect(trigger.classList.contains("ui-popup-trigger")).toBe(true);
     expect(trigger.getAttribute("aria-expanded")).toBe("false");
     trigger.click();
     await list.updateComplete;
 
-    const panel = row.querySelector(".action-menu-panel.ui-nav-row-menu");
+    const panel = root.getElementById(trigger.getAttribute("aria-controls") ?? "");
     expect(panel).not.toBeNull();
-    expect(panel?.parentElement).toBe(actions);
-    expect(panel?.classList.contains("ui-popup-panel")).toBe(true);
+    expect(panel?.matches(".ui-nav-row-menu.ui-menu.ui-popup-panel[popover]")).toBe(true);
     expect(panel?.getAttribute("data-ui-context")).toBe("project-actions");
     expect(trigger.getAttribute("aria-controls")).toBe(panel?.id);
     expect(panel?.id).not.toBe("");
@@ -85,7 +83,6 @@ describe("project sidebar styling contract", () => {
     expect(row.getAttribute("data-activity")).toBe("session");
     expect(row.getAttribute("data-busy")).toBe("true");
     expect(row.getAttribute("data-unread")).toBe("true");
-    expect(row.querySelector(".unread-ring .activity-indicator.session")).not.toBeNull();
 
     list.selected = second;
     list.statusSnapshot = machineStatusSnapshot({ revision: 2, projects: { first: { "core:terminal": true } } });
@@ -96,15 +93,10 @@ describe("project sidebar styling contract", () => {
     expect(row.getAttribute("data-activity")).toBe("terminal");
     expect(row.getAttribute("data-busy")).toBe("false");
     expect(row.getAttribute("data-unread")).toBe("false");
-    expect(row.querySelector(".activity-indicator.terminal")).not.toBeNull();
-    expect(row.querySelector(".unread-ring")).toBeNull();
     list.statusSnapshot = undefined;
     await list.updateComplete;
     expect(row.getAttribute("data-activity")).toBe("idle");
     expect(row.getAttribute("data-busy")).toBe("false");
-    expect(row.querySelector(".activity-indicator")).toBeNull();
-
-    expect(row.hasAttribute("data-selected")).toBe(false);
   });
 
   it("exposes collapse hooks on the existing section and toggle", async () => {
@@ -115,7 +107,7 @@ describe("project sidebar styling contract", () => {
     list.onToggleCollapsed = vi.fn(() => { list.collapsed = !list.collapsed; });
     await list.updateComplete;
     const section = list.shadowRoot?.querySelector("section");
-    const toggle = section?.querySelector<HTMLButtonElement>(".section-toggle.ui-nav-section-toggle");
+    const toggle = section?.querySelector<HTMLButtonElement>(".ui-nav-section-toggle");
     if (!section || !toggle) throw new Error("Expected a collapsible section");
     expect(toggle.getAttribute("aria-expanded")).toBe("true");
     toggle.click();

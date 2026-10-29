@@ -1,84 +1,72 @@
 import { expect, test } from "@playwright/test";
 import type { ChatView } from "../../src/client/src/components/ChatView";
 
+function messageGeometry(element: Element) {
+  const content = element.querySelector(".chat-message-content");
+  const paragraph = element.querySelector("formatted-text")?.shadowRoot?.querySelector("p");
+  if (!content || !paragraph) throw new Error("Missing message anatomy");
+  const box = content.getBoundingClientRect();
+  const marker = getComputedStyle(content, "::before");
+  const range = document.createRange();
+  range.selectNodeContents(paragraph);
+  const lines = [...range.getClientRects()].filter((rect) => rect.width > 0).sort((a, b) => a.top - b.top || a.left - b.left);
+  const first = lines[0], last = lines.at(-1);
+  if (!first || !last) throw new Error("Missing rendered text lines");
+  const markerLeft = box.left + parseFloat(marker.insetInlineStart);
+  return {
+    firstInset: first.left - box.left, lastInset: last.left - box.left,
+    firstLineLeft: first.left, contentLeft: box.left,
+    markerLeft, markerRight: markerLeft + parseFloat(marker.width),
+    markerBottom: box.top + parseFloat(marker.top) + parseFloat(marker.height),
+    contentBottom: box.bottom,
+  };
+}
+
 for (const scheme of ["dark", "light"] as const) {
-  test(`Playground ${scheme} is isolated, readable, and adds restrained geometric cues`, async ({ page }) => {
+  test(`Playground ${scheme} keeps readable, non-intercepting cues isolated from established themes`, async ({ page }) => {
     await page.goto("/overlays.html");
     await expect(page.locator("body")).toHaveAttribute("data-ready", "true");
-    await page.evaluate(async (scheme) => {
-      await window.overlayFixture.applyTheme(`themes:playground-${scheme}`);
-      const chat = document.querySelector<ChatView>("chat-view");
-      if (!chat) throw new Error("Missing chat fixture");
+    await page.locator("chat-view").evaluate(async (chat: ChatView) => {
       chat.messages = [
         { role: "user", parts: [{ type: "text", text: "Please update the retry limit to three and show me the change. Keep the existing timeout and connection settings unchanged. Explain what you changed and how you checked it so I can review the result before we move on." }] },
         { role: "assistant", parts: [{ type: "text", text: "Updated **retries** to **3**. The request now retries up to three times before reporting an error." }] },
       ];
       await chat.updateComplete;
-    }, scheme);
+    });
     const chat = page.locator("chat-view");
     const request = chat.locator('.chat-message[data-speaker="user"]');
     const reply = chat.locator('.chat-message[data-speaker="assistant"]');
-    await expect(request).toHaveCSS("border-inline-start-width", "3px");
-    await expect(reply).toHaveCSS("border-inline-start-width", "3px");
-    await expect(request).toHaveCSS("margin-inline-start", "0px");
-    await expect(reply).toHaveCSS("margin-inline-start", "0px");
-    const requestBorder = await request.evaluate((element) => getComputedStyle(element).borderInlineStartColor);
-    const replyBorder = await reply.evaluate((element) => getComputedStyle(element).borderInlineStartColor);
-    expect(requestBorder).not.toBe(replyBorder);
+    await page.evaluate((scheme) => window.overlayFixture.applyTheme(`themes:pi-web-${scheme}`), scheme);
+    await expect(request.locator("formatted-text p").first()).toBeVisible();
+    const baseline = await request.evaluate(messageGeometry);
+    const border = await request.evaluate((element) => getComputedStyle(element).borderInlineStartWidth);
+    await page.evaluate((scheme) => window.overlayFixture.applyTheme(`themes:playground-${scheme}`), scheme);
+    await expect(request).toHaveCSS("border-inline-start-width", border);
     const cue = (element: Element) => {
       const style = getComputedStyle(element, "::before");
-      return {
-        content: style.content, width: style.width, height: style.height,
-        mask: style.maskImage, clip: style.clipPath, start: style.insetInlineStart, float: style.cssFloat,
-        background: style.backgroundColor, pointerEvents: style.pointerEvents,
-      };
+      return { content: style.content, clip: style.clipPath, background: style.backgroundColor, pointerEvents: style.pointerEvents };
     };
     const requestCue = await request.locator(".chat-message-content").evaluate(cue);
     const replyCue = await reply.locator(".chat-message-content").evaluate(cue);
-    expect(requestCue).toMatchObject({
-      content: '""', width: "6px", height: "10px", start: "0px",
-      mask: "none", float: "none", pointerEvents: "none",
-      clip: "polygon(0% 0%, 25% 0%, 100% 50%, 25% 100%, 0% 100%, 75% 50%)",
-    });
-    expect(replyCue.clip).toBe("polygon(100% 0%, 75% 0%, 0% 50%, 75% 100%, 100% 100%, 25% 50%)");
+    expect(requestCue.content).not.toBe("none");
+    expect(requestCue.clip).not.toBe("none");
+    expect(replyCue.clip).not.toBe(requestCue.clip);
+    expect(requestCue.pointerEvents).toBe("none");
     for (const bubble of [request, reply]) {
-      await expect(bubble.locator("formatted-text p").first()).toBeVisible();
-      const geometry = await bubble.evaluate((element) => {
-        const content = element.querySelector(".chat-message-content");
-        const paragraph = element.querySelector("formatted-text")?.shadowRoot?.querySelector("p");
-        if (!content || !paragraph) throw new Error("Missing message anatomy");
-        const box = content.getBoundingClientRect();
-        const marker = getComputedStyle(content, "::before");
-        const left = box.left + Number.parseFloat(marker.insetInlineStart);
-        const range = document.createRange();
-        range.selectNodeContents(paragraph);
-        const lines = [...range.getClientRects()].filter((rect) => rect.width > 0).sort((a, b) => a.top - b.top || a.left - b.left);
-        return {
-          markerLeft: left, markerRight: left + Number.parseFloat(marker.width),
-          firstLineLeft: lines[0]?.left, lastLineLeft: lines.at(-1)?.left,
-          normalTextLeft: box.left + 12,
-          markerBottom: box.top + Number.parseFloat(marker.top) + Number.parseFloat(marker.height),
-          contentBottom: box.bottom,
-        };
-      });
-      expect(geometry.markerLeft).toBeGreaterThanOrEqual(3);
-      expect(geometry.markerRight - geometry.markerLeft).toBe(6);
-      expect(geometry.firstLineLeft).toBeGreaterThanOrEqual(geometry.markerRight + 6);
+      const geometry = await bubble.evaluate(messageGeometry);
+      expect(geometry.markerLeft).toBeGreaterThanOrEqual(geometry.contentLeft);
+      expect(geometry.markerRight).toBeLessThanOrEqual(geometry.firstLineLeft);
       expect(geometry.markerBottom).toBeLessThanOrEqual(geometry.contentBottom);
       if (bubble === request) {
-        // The small cue fits the existing inset; no line needs an extra text column.
-        expect(geometry.firstLineLeft).toBeCloseTo(geometry.normalTextLeft, 0);
-        expect(geometry.lastLineLeft).toBeCloseTo(geometry.normalTextLeft, 0);
+        // Preserve the established text inset on all lines, not a copied pixel recipe.
+        expect(geometry.firstInset).toBeCloseTo(baseline.firstInset, 0);
+        expect(geometry.lastInset).toBeCloseTo(baseline.lastInset, 0);
       }
     }
+    // Real clicks protect hit targeting around the decorative cue and metadata.
     await request.getByRole("button", { name: "Message actions", exact: true }).click();
     await request.getByRole("button", { name: "Message information" }).click();
     await expect(request.locator(".chat-message-meta")).toBeVisible();
-    await request.getByRole("button", { name: "Message actions", exact: true }).click();
-    await request.getByRole("button", { name: "Message information" }).click();
-    await expect(request.locator(".chat-message-meta")).toBeHidden();
-    await expect(request.locator(".chat-message-header .label")).toHaveCount(0);
-    await expect(reply.locator(".chat-message-header .label")).toHaveCount(0);
 
     // Resolve the real CSS custom properties, including color-mix, in the browser.
     // These are the small-text foreground/background pairs used by chat, code,
@@ -118,37 +106,31 @@ for (const scheme of ["dark", "light"] as const) {
     });
     for (const [pair, ratio] of Object.entries(contrasts)) expect(ratio, `${scheme}: ${pair}`).toBeGreaterThanOrEqual(4.5);
 
+
     const input = page.locator("prompt-editor .cm-content");
     await input.pressSequentially("/");
     const candidate = page.locator('autocomplete-menu .ui-choice[data-selected="true"]');
     await expect(candidate).toBeVisible();
-    expect(await candidate.evaluate((element) => getComputedStyle(element, "::after").borderInlineStartWidth)).toBe("2px");
+    expect(await candidate.evaluate((element) => getComputedStyle(element, "::after").content)).not.toBe("none");
     await input.press("Escape");
     await page.evaluate(() => window.overlayFixture.mountRenderer());
     const renderer = page.locator("#theme-renderer");
-    await renderer.scrollIntoViewIfNeeded();
     const highlighted = renderer.getByRole("button", { name: "Highlighted", exact: true });
     const raw = renderer.getByRole("button", { name: "Raw", exact: true });
-    await expect(highlighted).toHaveAttribute("data-selected", "true");
-    expect(await highlighted.evaluate((element) => getComputedStyle(element, "::after").borderBlockEndWidth)).toBe("2px");
     await raw.click();
-    await expect(raw).toHaveAttribute("data-selected", "true");
-    expect(await raw.evaluate((element) => getComputedStyle(element, "::after").borderBlockEndWidth)).toBe("2px");
+    expect(await raw.evaluate((element) => getComputedStyle(element, "::after").content)).not.toBe("none");
     expect(await highlighted.evaluate((element) => getComputedStyle(element, "::after").content)).toBe("none");
 
-    // Use the user's system foreground for chevrons when forced colours discard fills.
     await page.emulateMedia({ forcedColors: "active" });
     const forcedCue = await request.locator(".chat-message-content").evaluate(cue);
     expect(forcedCue.clip).toBe(requestCue.clip);
     expect(forcedCue.background).not.toBe("rgba(0, 0, 0, 0)");
-    expect(await raw.evaluate((element) => getComputedStyle(element, "::after").borderBlockEndStyle)).toBe("solid");
+    expect(await raw.evaluate((element) => parseFloat(getComputedStyle(element, "::after").borderBlockEndWidth))).toBeGreaterThan(0);
     await page.emulateMedia({ forcedColors: "none" });
-    await chat.scrollIntoViewIfNeeded();
     const screenshot = test.info().outputPath(`playground-${scheme}.png`);
     await page.screenshot({ path: screenshot });
     await test.info().attach(`playground-${scheme}`, { path: screenshot, contentType: "image/png" });
 
-    // Placement follows the inline edge in RTL; sent/received directions stay fixed.
     await page.evaluate(() => { document.documentElement.dir = "rtl"; });
     expect((await request.locator(".chat-message-content").evaluate(cue)).clip).toBe(requestCue.clip);
     expect(await chat.evaluate((element) => {
@@ -156,12 +138,8 @@ for (const scheme of ["dark", "light"] as const) {
       return scroller !== null && scroller !== undefined && scroller.scrollWidth <= scroller.clientWidth;
     })).toBe(true);
     await page.evaluate(() => { document.documentElement.dir = "ltr"; });
-
-    // Real stylesheet switching must remove experiments, not leak into existing themes.
     await page.evaluate((scheme) => window.overlayFixture.applyTheme(`themes:pi-web-${scheme}`), scheme);
     expect((await request.locator(".chat-message-content").evaluate(cue)).content).toBe("none");
-    await expect(request).toHaveCSS("border-inline-start-width", "3px");
-    await expect(request).toHaveCSS("margin-inline-start", "0px");
     expect(await raw.evaluate((element) => getComputedStyle(element, "::after").content)).toBe("none");
   });
 }

@@ -287,7 +287,7 @@ Supported surface/trigger presentation defaults use `pi-web-base`, so ordinary t
 
 Machine-picker buttons reserve `::after` for an optional theme-owned current cue. Playground draws a short logical-start edge inside existing padding, without adding a gutter. Destructive menu labels gain a dotted underline. Neither cue replaces names, native state, or focus indication; established themes retain their appearance.
 
-The controller still owns fixed positioning, viewport clamping, width/height constraints, native top-layer order, dismissal, and modal ownership. Themes must not replace those with stacking numbers or override its inline positioning. Tab/arrow behavior stays with each owner: this contract does not turn every action panel into an arrow-key ARIA menu, add a focus trap, or change completion focus preservation. Escape still closes the innermost popup first and returns focus according to that owner's existing behavior.
+The controller still owns fixed positioning, layout bounds, width/height constraints, native top-layer order, dismissal, and modal ownership. Above-editor completions anchor to the stable application layout rather than the keyboard's visible viewport; other popup placements retain their viewport constraints. Themes must not replace those with stacking numbers or override its inline positioning. Tab/arrow behavior stays with each owner: this contract does not turn every action panel into an arrow-key ARIA menu, add a focus trap, or change completion focus preservation. Escape still closes the innermost popup first and returns focus according to that owner's existing behavior.
 
 This boundary does not freeze all popup contents, machine-row layout, workspace detail structure, glyphs, or native OS chooser UI.
 

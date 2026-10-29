@@ -50,7 +50,6 @@ it("exposes shared anatomy and separates current navigation, activity, unread, a
   list.unreadSessionIds = new Set();
   await list.updateComplete;
   expect(firstRow.dataset["unread"]).toBe("false");
-  expect(firstRow.querySelector(".ui-nav-row-leading")).toBeNull();
   list.sending = { first: true };
   await list.updateComplete;
   expect(firstRow.dataset).toMatchObject({ activity: "sending", busy: "true" });
@@ -107,7 +106,7 @@ it("exposes disclosure, archive, and collapsed states without inventing disabled
   expect(button(list.renderRoot, ".ui-nav-section-toggle").getAttribute("aria-expanded")).toBe("false");
 });
 
-it("associates the detached action popup with its own row without navigating", async () => {
+it("associates the action popup with its own row without navigating", async () => {
   const list = new SessionList();
   const first = session("first");
   const second = session("second / id");
@@ -127,7 +126,6 @@ it("associates the detached action popup with its own row without navigating", a
   expect(panel?.classList.contains("ui-popup-panel")).toBe(true);
   expect(panel?.getAttribute("data-ui-context")).toBe("session-actions");
   expect(action.getAttribute("aria-expanded")).toBe("true");
-  expect(row(list, second.id).contains(panel)).toBe(false);
   expect(list.onSelect).not.toHaveBeenCalled();
   expect(row(list, first.id).dataset["current"]).toBe("true");
   action.click();

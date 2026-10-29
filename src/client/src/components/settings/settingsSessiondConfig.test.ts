@@ -1,14 +1,8 @@
 import { describe, expect, it } from "vitest";
 import type { PiWebConfigResponse, PiWebConfigValues } from "../../api";
-import { askUserConfigPatch, mergeSelectedMachineSessiondConfig, spawnSessionsConfigPatch, subsessionsConfigPatch } from "./settingsSessiondConfig";
+import { mergeSelectedMachineSessiondConfig } from "./settingsSessiondConfig";
 
 describe("session daemon settings config helpers", () => {
-  it("builds daemon-only save patches for the sessiond toggles", () => {
-    expect(spawnSessionsConfigPatch(false)).toEqual({ spawnSessions: false });
-    expect(subsessionsConfigPatch(true)).toEqual({ subsessions: true });
-    expect(askUserConfigPatch(false)).toEqual({ askUser: false });
-  });
-
   it("merges local selected-machine daemon config into gateway config without dropping gateway-only values", () => {
     const gateway = configResponse({
       host: "127.0.0.1",

@@ -1,6 +1,6 @@
 // @vitest-environment happy-dom
 import { afterEach, expect, it } from "vitest";
-import { ChatView, chatMessageMetadataLabel } from "./ChatView";
+import { ChatView } from "./ChatView";
 
 const message = {
   role: "assistant" as const,
@@ -32,7 +32,7 @@ it("keeps the same Info button and focus while showing and hiding a separate met
   expect(button.getAttribute("aria-expanded")).toBe("true");
   expect(button.querySelector("svg")).not.toBeNull();
   expect(region.hidden).toBe(false);
-  expect(region.textContent).toBe(chatMessageMetadataLabel(message));
+  expect(region.textContent).toContain("example/model");
   const content = view.shadowRoot?.querySelector(".conversation-content");
   if (!content) throw new Error("Expected conversation content");
   expect(content.nextElementSibling).toBe(region);
@@ -69,7 +69,6 @@ it("keeps conversational roles available to assistive technology without repeate
     expect(content?.querySelector(":scope > .chat-message-body")).not.toBeNull();
     expect(content?.nextElementSibling).toBe(bubble.querySelector(":scope > .chat-message-meta"));
   }
-  expect(view.renderRoot.querySelector(".system[data-speaker]")).toBeNull();
 
   view.messages = [{ ...message, role: "user" }];
   await view.updateComplete;

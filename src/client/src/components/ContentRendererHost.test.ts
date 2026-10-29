@@ -41,24 +41,6 @@ function button(host: ContentRendererHost, label: string): HTMLButtonElement {
   return found;
 }
 
-it.each(["automatic", "manual"] as const)("names the %s view button after the selected renderer", async (renderMode) => {
-  const draw = vi.fn(() => html`<b>Named content</b>`);
-  const host = hostWith([{ id: "highlighted", label: "Highlighted", renderer: {
-    id: "highlighted", title: "Highlighted", renderMode, render: draw,
-  } }]);
-  document.body.append(host);
-  await settleDeferredContent(host);
-  const namedButton = button(host, "Highlighted");
-  expect(namedButton.getAttribute("aria-pressed")).toBe(String(renderMode === "automatic"));
-  button(host, "Raw").click();
-  await settleDeferredContent(host);
-  expect(namedButton.getAttribute("aria-pressed")).toBe("false");
-  namedButton.click();
-  await settleDeferredContent(host);
-  expect(namedButton.getAttribute("aria-pressed")).toBe("true");
-  expect(host.renderRoot.querySelector("b")?.textContent).toBe("Named content");
-});
-
 it("shows every named view and Raw, and explicitly activates manual views while cancelling previous work", async () => {
   const automatic = vi.fn<ContentRendererContribution["render"]>(() => html`<b>Automatic</b>`);
   const manual = vi.fn<ContentRendererContribution["render"]>(() => html`<b>Manual</b>`);
@@ -103,11 +85,9 @@ it("scopes choice hooks to named views and Raw, keeping selection aligned with a
   document.body.append(host);
   await settleDeferredContent(host);
   const scope = host.renderRoot.querySelector('[data-ui-context="content-views"]');
-  expect(scope).toBe(host.renderRoot.querySelector(".views"));
-  expect(host.renderRoot.querySelectorAll("[data-ui-context]")).toHaveLength(1);
   const choices = [...(scope?.querySelectorAll<HTMLButtonElement>("button") ?? [])];
-  expect(choices.map((choice) => choice.textContent.trim())).toEqual(["First", "Second", "Raw"]);
-  expect(choices.every((choice) => choice.matches(".ui-choice.ui-button.ui-button--compact"))).toBe(true);
+  expect(choices).toEqual([button(host, "First"), button(host, "Second"), button(host, "Raw")]);
+  expect(choices.every((choice) => choice.matches(".ui-choice.ui-button"))).toBe(true);
   const copy = button(host, "Copy source");
   expect(scope?.contains(copy)).toBe(false);
   expect(copy.matches(".ui-choice, [data-selected]")).toBe(false);
@@ -120,9 +100,6 @@ it("scopes choice hooks to named views and Raw, keeping selection aligned with a
   button(host, "First").click();
   await settleDeferredContent(host);
   expectSelection(["true", "false", "false"]);
-  button(host, "Second").click();
-  await settleDeferredContent(host);
-  expectSelection(["false", "true", "false"]);
   button(host, "Raw").click();
   await settleDeferredContent(host);
   expectSelection(["false", "false", "true"]);

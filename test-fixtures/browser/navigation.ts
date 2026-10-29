@@ -6,7 +6,6 @@ import type { MachineStatusSnapshot } from "../../src/shared/machineStatus";
 
 // Real components and deterministic local data; no app runtime or session daemon.
 trustApi.workspaceTrust = () => Promise.resolve({ path: "/repo", decision: false, trusted: false });
-trustApi.setWorkspaceTrust = (_projectId, _workspaceId, trusted) => Promise.resolve({ path: "/repo", decision: trusted, trusted });
 const style = document.createElement("style");
 style.textContent = `
   :root { --pi-bg: #161616; --pi-surface: #252525; --pi-surface-hover: #303030; --pi-text: #eee; --pi-text-bright: #fff; --pi-border: #555; --pi-border-muted: #444; --pi-muted: #aaa; --pi-success: #8cbd9b; --pi-warning: #d1b571; --pi-accent: #aaf; --pi-selection-bg: #303044; }
@@ -75,18 +74,16 @@ const sheet = new CSSStyleSheet();
 sheet.replaceSync(`
   .ui-nav-row-label { color: rgb(200, 210, 220); white-space: normal; }
   .ui-nav-row-main { padding-inline-start: 24px; }
-  [data-ui-context="workspaces"] .ui-nav-row-label { text-decoration: underline; }
 `);
 declare global {
-  interface Window { navigationFixture: { setTheme: (enabled: boolean) => void }; }
+  interface Window { navigationFixture: { applyTheme: () => void }; }
 }
 window.navigationFixture = {
-  setTheme: (enabled) => {
+  applyTheme: () => {
     for (const component of [projects, workspaces, sessions]) {
       const root = component.shadowRoot;
       if (!root) throw new Error("Missing navigation root");
-      root.adoptedStyleSheets = root.adoptedStyleSheets.filter((candidate) => candidate !== sheet);
-      if (enabled) root.adoptedStyleSheets = [...root.adoptedStyleSheets, sheet];
+      root.adoptedStyleSheets = [...root.adoptedStyleSheets, sheet];
     }
   },
 };

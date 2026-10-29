@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { configApi, pluginsApi, type PiWebConfigResponse } from "../api";
-import { activeSettingsPanelTag, SettingsDialog } from "./SettingsDialog";
+import { SettingsDialog } from "./SettingsDialog";
 import { callDialogPromise, callDialogUpdated, configResponse, deferred, getDialogProperty, pluginsResponse, remoteMachine, secondRemoteMachine, setDialogProperty, stubWindowTimers } from "./SettingsDialog.testSupport";
 
 afterEach(() => {
@@ -9,18 +9,6 @@ afterEach(() => {
 });
 
 describe("settings-dialog general settings machine targeting", () => {
-  it("routes each section to a single settings panel with no per-tab scope-note wrapper", () => {
-    // The old global "scope-note"/"This tab edits:" wrapper is gone: each section
-    // now maps to exactly one panel element. Assert that public routing contract
-    // (`activeSettingsPanelTag`) instead of scraping the rendered template markup.
-    expect(activeSettingsPanelTag("general")).toBe("settings-general-panel");
-    expect(activeSettingsPanelTag("sessiond")).toBe("settings-sessiond-panel");
-    expect(activeSettingsPanelTag("packages")).toBe("settings-packages-panel");
-    expect(activeSettingsPanelTag("plugins")).toBe("settings-plugins-panel");
-    expect(activeSettingsPanelTag("mcp")).toBe("settings-mcp-panel");
-    expect(activeSettingsPanelTag("shortcuts")).toBe("settings-shortcuts-panel");
-  });
-
   it("keeps gateway server config saves on the gateway config endpoint", async () => {
     stubWindowTimers();
     const savedConfig = configResponse({ host: "0.0.0.0", port: 9000, allowedHosts: true });

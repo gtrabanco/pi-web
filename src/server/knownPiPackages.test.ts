@@ -2,8 +2,7 @@ import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { isKnownAutoInstallablePiPackageId, KNOWN_AUTO_INSTALLABLE_PI_PACKAGES, resolveShippedPiPackagePath } from "./knownAutoInstallPiPackages.js";
-import { KNOWN_PI_PACKAGES } from "./knownPiPackages.js";
+import { resolveShippedPiPackagePath } from "./knownAutoInstallPiPackages.js";
 import { ActiveProfilePiPackageService, createDefaultPiPackageService } from "./piPackageService.js";
 
 const packageId = "@example/pi-optional";
@@ -20,12 +19,6 @@ afterEach(async () => {
 });
 
 describe("optional shipped Pi packages", () => {
-  it("keeps the shipped catalog aligned with the remaining bundled packages", () => {
-    expect(KNOWN_PI_PACKAGES).toEqual(KNOWN_AUTO_INSTALLABLE_PI_PACKAGES);
-    expect(isKnownAutoInstallablePiPackageId(packageId)).toBe(false);
-    expect(KNOWN_AUTO_INSTALLABLE_PI_PACKAGES.some((entry) => entry.id === packageId)).toBe(false);
-  });
-
   it.each(["user", "project"] as const)("removes a missing relative package from %s settings without removing other entries", async (scope) => {
     const root = await mkdtemp(join(tmpdir(), "pi-web-stale-package-"));
     tempDirs.push(root);

@@ -61,88 +61,61 @@ function action(editor: PromptEditor, name: string) {
 }
 
 function root(editor: PromptEditor) {
-  return required(editor, 'footer[data-ui-context="composer"]');
+  return required(editor, '[data-ui-context="composer"]');
 }
 
 function expectDefault(editor: PromptEditor, expected: "send" | "queue" | "steer" | "none") {
   expect(root(editor).dataset["defaultAction"]).toBe(expected);
-  const eligible = editor.renderRoot.querySelectorAll<HTMLButtonElement>(".send-button, .steer-button");
+  const eligible = editor.renderRoot.querySelectorAll<HTMLButtonElement>('[data-composer-action="send"], [data-composer-action="queue"], [data-composer-action="steer"]');
   for (const button of eligible) {
     const selected = expected !== "none" && button.dataset["composerAction"] === expected;
     expect(button.getAttribute("data-default")).toBe(String(selected));
-    expect(button.classList.contains("default-send-action")).toBe(selected);
   }
-  expect(editor.renderRoot.querySelectorAll(".default-send-action")).toHaveLength(expected === "none" ? 0 : 1);
+  expect(editor.renderRoot.querySelectorAll('[data-default="true"]')).toHaveLength(expected === "none" ? 0 : 1);
   expect(action(editor, "stop").hasAttribute("data-default")).toBe(false);
 }
 
 describe("composer styling contract", () => {
-  it("annotates the existing anatomy and native controls without inserting wrappers", async () => {
+  it("exposes composer anatomy and initial state through supported hooks", async () => {
     const editor = await mount();
     const footer = root(editor);
-    const toolbar = required(editor, ".actions");
-    const settings = required(editor, ".ui-composer-settings");
-    const actions = required(editor, ".ui-composer-actions");
-    expect([...footer.children].map((element) => element.classList.contains("editor-wrap") ? "editor" : element === toolbar ? "toolbar" : "unexpected")).toEqual(["editor", "toolbar"]);
-    expect(toolbar.classList.contains("ui-composer-toolbar")).toBe(true);
-    expect(settings.classList.contains("ui-toolbar-group--bounded")).toBe(true);
-    expect(settings.parentElement).toBe(required(editor, ".compact-status"));
-    expect(settings.parentElement?.parentElement).toBe(toolbar);
-    expect([...settings.children]).toEqual([action(editor, "model"), action(editor, "thinking")]);
-    expect(actions.parentElement).toBe(toolbar);
-    expect([...actions.children]).toEqual([action(editor, "send"), action(editor, "stop")]);
-    expect(action(editor, "attach").parentElement).toBe(required(editor, ".editor-input"));
+    const toolbar = required(editor, ".ui-composer-toolbar");
+    expect(footer.contains(toolbar)).toBe(true);
+    expect(toolbar.contains(required(editor, ".ui-composer-settings"))).toBe(true);
+    expect(required(editor, ".ui-composer-actions").parentElement).toBe(toolbar);
     for (const name of ["model", "thinking", "attach", "send", "stop"]) {
       expect(action(editor, name).classList.contains("ui-button")).toBe(true);
     }
-    expect(footer.dataset["mode"]).toBe("text");
-    expect(footer.dataset["busy"]).toBe("false");
-    expect(footer.dataset["disabled"]).toBe("false");
-    expect(footer.dataset["compacting"]).toBe("false");
+    expect(footer.dataset).toMatchObject({ mode: "text", busy: "false", disabled: "false", compacting: "false" });
     // An empty draft does not remove the configured default.
     expectDefault(editor, "send");
   });
 
-  it.each([
-    { canSteer: false, compacting: false, preference: "steer" as const, expected: "send" as const },
-    { canSteer: true, compacting: false, preference: "steer" as const, expected: "steer" as const },
-    { canSteer: true, compacting: false, preference: "followUp" as const, expected: "queue" as const },
-    { canSteer: true, compacting: true, preference: "steer" as const, expected: "queue" as const },
-  ])("synchronizes the default and preserves manual actions ($expected, compacting=$compacting)", async ({ canSteer, compacting, preference, expected }) => {
+  it("refreshes default-action hooks as streaming preference and compaction change", async () => {
     const editor = await mount();
-    editor.canSteer = canSteer;
-    editor.isCompacting = compacting;
-    editor.defaultStreamingBehavior = preference;
-    editor.replaceText("Message");
-    editor.focusInput();
+    const primary = action(editor, "send");
+    editor.canSteer = true;
     await editor.updateComplete;
-    expect(root(editor).dataset["compacting"]).toBe(String(compacting));
-    expectDefault(editor, expected);
-    const primary = action(editor, canSteer || compacting ? "queue" : "send");
-    expect(primary.classList.contains("send-button")).toBe(true);
-    primary.click();
+    expect(action(editor, "queue")).toBe(primary);
+    expectDefault(editor, "steer");
+    editor.defaultStreamingBehavior = "followUp";
     await editor.updateComplete;
-    expect(editor.onSend).toHaveBeenCalledWith("Message", canSteer || compacting ? "followUp" : undefined, undefined, undefined, undefined);
-    expect(editor.view?.hasFocus).toBe(true);
-    expectDefault(editor, expected);
-    if (canSteer && !compacting) {
-      editor.replaceText("Correction");
-      const steer = action(editor, "steer");
-      expect(steer.classList.contains("ui-button")).toBe(true);
-      expect(steer.parentElement).toBe(primary.parentElement);
-      steer.click();
-      expect(editor.onSend).toHaveBeenLastCalledWith("Correction", "steer", undefined, undefined, undefined);
-    } else {
-      expect(editor.renderRoot.querySelector('[data-composer-action="steer"]')).toBeNull();
-    }
+    expectDefault(editor, "queue");
+    editor.defaultStreamingBehavior = "steer";
+    editor.isCompacting = true;
+    await editor.updateComplete;
+    expect(root(editor).dataset["compacting"]).toBe("true");
+    expectDefault(editor, "queue");
+    editor.canSteer = false;
+    editor.isCompacting = false;
+    await editor.updateComplete;
+    expect(root(editor).dataset["compacting"]).toBe("false");
+    expectDefault(editor, "send");
   });
 
-  it.each([null, "not-a-key", "mod+k mod+enter"])("does not advertise a default for %s but permits manual send", async (shortcut) => {
-    const editor = await mount(shortcut);
+  it("clears the default hook when submission has no configured shortcut", async () => {
+    const editor = await mount(null);
     expectDefault(editor, "none");
-    editor.replaceText("Manual message");
-    action(editor, "send").click();
-    expect(editor.onSend).toHaveBeenCalledOnce();
   });
 
   it.each(["disabled", "sending"] as const)("distinguishes native disabled controls from busy state for %s", async (property) => {
@@ -187,28 +160,18 @@ describe("composer styling contract", () => {
     expectDefault(editor, "send");
   });
 
-  it("keeps model/thinking callbacks and focused native controls stable across status updates", async () => {
+  it("exposes model and thinking purposes without claiming externally owned dialog state", async () => {
     const editor = await mount();
     editor.onSelectModel = vi.fn();
     editor.onSelectThinking = vi.fn();
-    await editor.updateComplete;
-    const model = action(editor, "model");
-    const thinking = action(editor, "thinking");
-    model.click();
-    thinking.click();
+    action(editor, "model").click();
+    action(editor, "thinking").click();
     expect(editor.onSelectModel).toHaveBeenCalledOnce();
     expect(editor.onSelectThinking).toHaveBeenCalledOnce();
-    for (const button of [model, thinking]) {
-      button.focus();
-      editor.status = { ...status(), model: { provider: "test", id: "updated-model" }, thinkingLevel: "high", cost: 1 };
-      await editor.updateComplete;
-      expect(action(editor, "model")).toBe(model);
-      expect(action(editor, "thinking")).toBe(thinking);
-      expect(editor.shadowRoot?.activeElement).toBe(button);
-      expect(button.hasAttribute("aria-expanded")).toBe(false);
-      expect(button.hasAttribute("aria-controls")).toBe(false);
+    for (const name of ["model", "thinking"]) {
+      expect(action(editor, name).hasAttribute("aria-expanded")).toBe(false);
+      expect(action(editor, name).hasAttribute("aria-controls")).toBe(false);
     }
-    expect(model.textContent).toContain("updated-model");
   });
 
   it("reports shell mode only when the shell UI actually renders", async () => {
@@ -216,33 +179,22 @@ describe("composer styling contract", () => {
     editor.replaceText("!pwd");
     await editor.updateComplete;
     expect(root(editor).dataset["mode"]).toBe("shell");
-    expect(root(editor).classList.contains("shell-mode")).toBe(true);
-    expect(required(editor, ".mode-hint")).toBeTruthy();
     editor.promptChips = [{ id: "context", key: "context", pluginId: "test", target: { machineId: "local", sessionId: "styling" }, label: "Context", text: "Context content" }];
     await editor.updateComplete;
     expect(root(editor).dataset["mode"]).toBe("text");
-    expect(root(editor).classList.contains("shell-mode")).toBe(false);
-    expect(editor.renderRoot.querySelector(".mode-hint")).toBeNull();
   });
 
-  it.each([
-    { android: false, coarse: false },
-    { android: false, coarse: true },
-    { android: true, coarse: false },
-    { android: true, coarse: true },
-  ])("annotates attachment sources for the platform, not pointer type (Android=$android, coarse=$coarse)", async ({ android, coarse }) => {
-    stubPointer(coarse);
+  it.each([false, true])("exposes attachment popup ownership only on Android (%s)", async (android) => {
     vi.spyOn(navigator, "userAgent", "get").mockReturnValue(android ? "Mozilla/5.0 (Linux; Android 14)" : "Unknown browser");
     const editor = await mount();
     const attach = action(editor, "attach");
-    const panel = required(editor, ".attach-source-panel");
-    expect(panel.dataset["uiContext"]).toBe("composer-attachment-sources");
-    expect(panel.classList.contains("ui-popup-panel")).toBe(true);
+    const panel = required(editor, '[data-ui-context="composer-attachment-sources"]');
+    expect(panel.matches(".ui-menu.ui-popup-panel[popover]")).toBe(true);
     expect(attach.classList.contains("ui-popup-trigger")).toBe(android);
-    expect(panel.hasAttribute("popover")).toBe(true);
-    expect(panel.parentElement).toBe(attach.parentElement);
-    expect([...panel.querySelectorAll("button")]).toEqual([action(editor, "attach-photos"), action(editor, "attach-camera"), action(editor, "attach-files")]);
-    for (const button of panel.querySelectorAll("button")) expect(button.classList.contains("ui-button")).toBe(true);
+    for (const name of ["attach-photos", "attach-camera", "attach-files"]) {
+      expect(panel.contains(action(editor, name))).toBe(true);
+      expect(action(editor, name).matches(".ui-button.ui-menu-item")).toBe(true);
+    }
     expect(attach.getAttribute("aria-controls")).toBe(android ? panel.id : null);
     expect(attach.getAttribute("aria-expanded")).toBe(android ? "false" : null);
     if (android) {

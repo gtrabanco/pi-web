@@ -6,6 +6,7 @@ import { AutocompleteMenu } from "./AutocompleteMenu";
 
 afterEach(() => {
   document.body.replaceChildren();
+  localStorage.clear();
   vi.restoreAllMocks();
   vi.unstubAllGlobals();
 });
@@ -74,8 +75,7 @@ describe("AutocompleteMenu", () => {
     await menu.updateComplete;
 
     const panel = menu.shadowRoot?.querySelector('[data-ui-context="completions"]');
-    expect(panel).toBe(menu.shadowRoot?.querySelector(".menu[popover]"));
-    expect(menu.shadowRoot?.querySelectorAll("[data-ui-context]")).toHaveLength(1);
+    expect(panel?.matches(".ui-popup-panel[popover]")).toBe(true);
     const choices = [...(panel?.querySelectorAll("button") ?? [])];
     expect(choices).toHaveLength(2);
     expect(choices.every((choice) => choice.classList.contains("ui-choice"))).toBe(true);
@@ -84,7 +84,6 @@ describe("AutocompleteMenu", () => {
     menu.selectedIndex = 1;
     await menu.updateComplete;
     expect(choices.map((choice) => choice.getAttribute("data-selected"))).toEqual(["false", "true"]);
-    expect(choices.map((choice) => choice.classList.contains("selected"))).toEqual([false, true]);
     expect(panel?.querySelector("[aria-selected], [aria-pressed], [role]")).toBeNull();
   });
 

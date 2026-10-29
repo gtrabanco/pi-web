@@ -3,6 +3,7 @@
 Use focused checks for local feedback; use CI and delivery gates for broad confidence. Pick checks by the boundary changed, not by a habit of running every command before every handoff.
 
 For incremental chat UX changes, see [composing chat behavior](chat-behaviors.md) for capability ownership and internal configuration.
+For website releases and website-only hotfixes, see [website deployments](website-deployments.md).
 
 ## Fast local feedback
 
@@ -38,7 +39,21 @@ git diff --check
 
 The first cached typecheck still pays for a full check; subsequent runs reuse `node_modules/.cache/pi-web/typecheck.tsbuildinfo`. Scoped ESLint is type-aware and still loads the TypeScript project, so it belongs at a meaningful checkpoint rather than after every keystroke. Focused tests/watch mode are the innermost loop.
 
-Documentation/comment-only changes need link/path review, relevant documentation or asset tests, and `git diff --check`; they do not need a local typecheck or whole-project lint. Use the [testing guide](../.agents/skills/testing-guide/SKILL.md#decide-whether-a-test-adds-protection) to choose the smallest boundary that proves the behavior.
+Documentation/comment-only changes need link/path review, relevant documentation or asset tests, and `git diff --check`; they do not need a local typecheck or whole-project lint. Use [testing policy](testing.md#choose-the-smallest-useful-boundary) to choose the smallest boundary that proves the behavior.
+
+## Development startup
+
+`package.json` owns development startup commands and prerequisites. Run services through npm so their standard `pre<script>`, main script, and `post<script>` lifecycle steps execute in order. A failing prerequisite prevents that service from starting; post hooks are normal completion steps, not guaranteed shutdown cleanup.
+
+- `npm run dev` supervises watched sessiond, web/API, and client services.
+- `npm run dev:ui` supervises web/API and client services without owning sessiond.
+- Split native and Docker services use `start:sessiond` for the non-watched daemon and `dev:ui` for the UI group.
+
+Existing native development service definitions continue to work but retain their shell-based grouping until reinstalled. To adopt shared supervision, run `pi-web install --dev` once from the updated checkout, including the same `--config <path>` option if the services use a custom config file. Reinstalling services interrupts active sessions and terminals. Native update/restart commands do not rewrite definitions; `pi-web doctor` identifies outdated definitions and recommends reinstalling them. Docker updates recreate them through the normal update flow.
+
+`dev-services.mjs` supervises complete npm lifecycles, propagates failures, and stops sibling process groups. Service launchers own their runtime/build working directories. Deployment definitions select service scripts and environments; they must not repeat compiler, asset-generation, or other prerequisite commands. Add new prerequisites to the owning package lifecycle, then test their ordering and failure behavior at that boundary.
+
+Docker's `pi-web-npm` wrapper selects the image's Node/npm for startup tooling. API/sessiond launchers restore the saved tooling PATH before spawning their runtimes with that selected Node, so user tools and terminals retain their original PATH. Browser/plugin builders keep the pinned lifecycle environment and use the `/build/pi-web` source mount. Docker's init forwards shutdown signals to the lifecycle process group so the Node supervisors can clean up their detached children.
 
 ## Browser surface contracts
 
@@ -67,7 +82,7 @@ These tests prove browser painting, hit targeting, anchoring, and focus/dismissa
 | Manual CI run | Same full CI checks; installed-package smoke on Linux | GitHub Actions `workflow_dispatch`, selected ref |
 | Package publication | Full verification, build, artifact checks, installed-package smoke, then publish | GitHub Actions publish workflow, Linux |
 
-Pre-commit checks only the staged diff for whitespace errors and introduced conflict markers. It starts no npm/Node process and runs no typecheck, lint, Knip, tests, or build. The former `verify:staged` command and staged-validation planner have been removed. Agents choose and run the scoped completion checks explicitly, then commit without repeating them. A successful commit proves hygiene only; CI independently checks the code.
+Pre-commit checks only the staged diff for whitespace errors and introduced conflict markers. It starts no npm/Node process and runs no typecheck, lint, Knip, tests, or build. Agents choose and run the scoped completion checks explicitly, then commit without repeating them. A successful commit proves hygiene only; CI independently checks the code.
 
 `npm run verify` runs uncached typechecking, whole-project ESLint, Knip unused-code analysis, and the ordinary test suite. Run it locally when a change's affected surface cannot be bounded, validation configuration changes, or a user explicitly requests full verification. A shared helper with identifiable consumers can still use related tests; a final handoff alone is not a reason to rerun every check. CI provides the mandatory broad PR/merge gate.
 

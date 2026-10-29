@@ -52,11 +52,12 @@ describe("default localization", () => {
     expect(JSON.parse(await readFile(configPath, "utf8"))).not.toHaveProperty("defaultLocalization");
   });
 
-  it.each([null, { language: "en_US" }, { language: "en-XA" }, { timeZone: "invalid" }, { extra: true }])("rejects invalid file defaults %j on load and save", async (defaultLocalization) => {
+  it("validates localization defaults on both load and save", async () => {
+    // Detailed invalid-value coverage belongs to defaultLocalization.test.ts.
+    const defaultLocalization = { language: "en_US" };
     await writeFile(configPath, JSON.stringify({ defaultLocalization }), "utf8");
     expect(() => loadPiWebConfig(testOptions())).toThrow("PI WEB config defaultLocalization");
     // The persistence boundary also validates runtime input from untyped callers.
-    // @ts-expect-error deliberately invalid config input
     expect(() => savePiWebConfig({ defaultLocalization }, testOptions())).toThrow("PI WEB config defaultLocalization");
   });
 });
