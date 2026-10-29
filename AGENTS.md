@@ -39,11 +39,11 @@ Use `.agents/skills/documentation-guide/SKILL.md` whenever writing, modifying, r
 
 ## Testing guidance
 
-Project-specific testing rules live in `.agents/skills/testing-guide/SKILL.md`.
+Read and follow [testing policy](docs/testing.md) whenever adding, changing, planning, reviewing, or reassessing tests, triaging failures, or creating test helpers.
 
-Use that skill whenever writing, modifying, reviewing, or planning tests, closing coverage gaps, triaging test failures, or creating test helpers/harnesses. Keep detailed testing conventions there rather than growing this top-level orientation file.
+Use [test harnesses](docs/testing-harnesses.md) for implementation mechanics and [development and delivery checks](docs/development-checks.md) for verification commands and scope. Keep policy and detailed conventions in those documents rather than duplicating them here.
 
-Default to focused tests while iterating, then scoped ESLint and `npm run typecheck:cached` for a completed TypeScript code change. Run completion checks once against the final changes; rerun affected checks if relevant files change afterward, not merely because you are committing. Pre-commit only runs `git diff --cached --check`; agents own scoped local verification, and CI owns the full gate. Escalate according to [development and delivery checks](docs/development-checks.md). Ordinary app changes do not require package-install smoke tests locally.
+The project Pi prompt `/reassess-tests` lives in [`.pi/prompts/reassess-tests.md`](.pi/prompts/reassess-tests.md).
 
 ## Verification reporting
 

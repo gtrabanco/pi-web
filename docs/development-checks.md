@@ -38,7 +38,7 @@ git diff --check
 
 The first cached typecheck still pays for a full check; subsequent runs reuse `node_modules/.cache/pi-web/typecheck.tsbuildinfo`. Scoped ESLint is type-aware and still loads the TypeScript project, so it belongs at a meaningful checkpoint rather than after every keystroke. Focused tests/watch mode are the innermost loop.
 
-Documentation/comment-only changes need link/path review, relevant documentation or asset tests, and `git diff --check`; they do not need a local typecheck or whole-project lint. Use the [testing guide](../.agents/skills/testing-guide/SKILL.md#decide-whether-a-test-adds-protection) to choose the smallest boundary that proves the behavior.
+Documentation/comment-only changes need link/path review, relevant documentation or asset tests, and `git diff --check`; they do not need a local typecheck or whole-project lint. Use [testing policy](testing.md#choose-the-smallest-useful-boundary) to choose the smallest boundary that proves the behavior.
 
 ## Development startup
 
@@ -81,7 +81,7 @@ These tests prove browser painting, hit targeting, anchoring, and focus/dismissa
 | Manual CI run | Same full CI checks; installed-package smoke on Linux | GitHub Actions `workflow_dispatch`, selected ref |
 | Package publication | Full verification, build, artifact checks, installed-package smoke, then publish | GitHub Actions publish workflow, Linux |
 
-Pre-commit checks only the staged diff for whitespace errors and introduced conflict markers. It starts no npm/Node process and runs no typecheck, lint, Knip, tests, or build. The former `verify:staged` command and staged-validation planner have been removed. Agents choose and run the scoped completion checks explicitly, then commit without repeating them. A successful commit proves hygiene only; CI independently checks the code.
+Pre-commit checks only the staged diff for whitespace errors and introduced conflict markers. It starts no npm/Node process and runs no typecheck, lint, Knip, tests, or build. Agents choose and run the scoped completion checks explicitly, then commit without repeating them. A successful commit proves hygiene only; CI independently checks the code.
 
 `npm run verify` runs uncached typechecking, whole-project ESLint, Knip unused-code analysis, and the ordinary test suite. Run it locally when a change's affected surface cannot be bounded, validation configuration changes, or a user explicitly requests full verification. A shared helper with identifiable consumers can still use related tests; a final handoff alone is not a reason to rerun every check. CI provides the mandatory broad PR/merge gate.
 
