@@ -63,12 +63,6 @@ describe("machine crumb", () => {
     expect(machineChip(bar)?.textContent).toContain("PI-WEB");
   });
 
-  it("always shows the machine crumb in PWA mode, falling back to the local machine", async () => {
-    const bar = await mountBar({ machines: [machine("local")], locationIndicator: true });
-
-    expect(machineChip(bar)?.querySelector("img")).not.toBeNull();
-  });
-
   it("is a static identity chip with its name and URL in PWA mode when there is no machine choice", async () => {
     const bar = await mountBar({ machines: [machine("local")], locationIndicator: true });
 
@@ -76,6 +70,7 @@ describe("machine crumb", () => {
     expect(chip?.tagName).toBe("SPAN");
     expect(chip?.textContent).toContain(document.location.host);
     expect(chip?.textContent).toContain("Local");
+    expect(chip?.querySelector("img")).not.toBeNull();
   });
 
   it("shows the static machine name in browser mode when there is no machine choice", async () => {

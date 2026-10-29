@@ -101,6 +101,7 @@ source "$SERVICE_TEST_LAUNCHER" "$SERVICE_TEST_ENTRY"
     expect(compose).not.toMatch(/chown\s+-R/u);
     const dockerfile = await readFile("docker/Dockerfile.dev", "utf8");
     const hooks = dockerfile.indexOf("for script in /tmp/pi-web-custom-image.d/*.sh");
+    expect(hooks).toBeGreaterThanOrEqual(0);
     expect(dockerfile.indexOf("/opt/pi-web-dev-dependencies/generation")).toBeGreaterThan(hooks);
     expect(dockerfile.indexOf("find /opt/pi-web-dev-dependencies/node_modules")).toBeGreaterThan(hooks);
   });

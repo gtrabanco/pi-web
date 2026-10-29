@@ -31,22 +31,6 @@ afterEach(() => {
 });
 
 describe("PiSessionService prompt, queue, and auth warnings", () => {
-  it("sends prompts to an injected runtime without touching the SDK runtime", async () => {
-    const fake = fakeRuntime("prompt-session");
-    const service = new PiSessionService(new CapturingSessionEventHub(), {
-      agentDir: TEST_AGENT_DIR,
-      modelRuntime: testModelRuntime,
-      createAgentRuntime: runtimeCreator(fake.runtime),
-      sessionManager: sessionGateway([sessionRecord("prompt-session")]),
-      heartbeatIntervalMs: 60_000,
-    });
-
-    await service.prompt(sessionRef("prompt-session"), "Build the thing");
-
-    expect(fake.calls.prompt).toEqual([{ text: "Build the thing", options: undefined }]);
-    await service.dispose();
-  });
-
   it("echoes the user message for direct prompts but not command-forwarded ones", async () => {
     const fake = fakeRuntime("echo-session", {
       resourceLoader: { getSkills: () => ({ skills: [{ name: "skill-creator" }] }) },

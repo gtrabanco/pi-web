@@ -48,7 +48,7 @@ export function chatImagePartSource(part: ChatImagePart, session?: SessionRef, m
   return transcriptImageSource(part, session, machineId);
 }
 
-export { chatToolOutputLabel, chatMessageGroupClassName, chatMessageGroupLabel } from "./chat/transcriptLabels";
+export { chatToolOutputLabel } from "./chat/transcriptLabels";
 
 function chatLineIdentity(index: number, message?: ChatLine): string {
   return chatLineScrollIdentity(message) ?? String(index);

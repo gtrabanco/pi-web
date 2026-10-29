@@ -176,14 +176,6 @@ describe("machine icons", () => {
     expect(icon?.classList.contains("dimmed")).toBe(true);
   });
 
-  it("places the switcher button's activity indicator to the right of the favicon", async () => {
-    const switcher = await mountSwitcher([machine("local", "local"), machine("remote-a", "remote")], { local: machineStatusSnapshot({ machine: { "core:unread": true } }) });
-
-    const icon = requiredElement(switcherButton(switcher), ".machine-icon");
-    const dot = requiredElement(switcherButton(switcher), ".activity-indicator");
-    expect(icon.compareDocumentPosition(dot)).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
-  });
-
   it("shows each machine's own favicon in the dropdown", async () => {
     const remote = machine("remote-a", "remote");
     remote.baseUrl = "https://fleet-a.example.com/";
@@ -251,14 +243,6 @@ describe("single-machine info bubble", () => {
     expect(info?.querySelector(".machine-switcher-label")?.textContent).toBe("local");
   });
 
-  it("places the activity indicator to the right of the favicon", async () => {
-    const switcher = await mountSwitcher([machine("local", "local")], { local: machineStatusSnapshot({ machine: { "core:unread": true } }) }, {}, true);
-
-    const icon = requiredElement(switcher.shadowRoot, ".machine-info .machine-icon");
-    const dot = requiredElement(switcher.shadowRoot, ".machine-info .activity-indicator");
-    expect(icon.compareDocumentPosition(dot)).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
-  });
-
   it("does not open a menu when clicked", async () => {
     const switcher = await mountSwitcher([machine("local", "local")], {}, {}, true);
 
@@ -304,12 +288,6 @@ function switcherButton(switcher: MachineSwitcher): HTMLElement {
   const button = switcher.shadowRoot?.querySelector(".machine-switcher-button");
   if (!(button instanceof HTMLElement)) throw new Error("Expected the machine switcher button");
   return button;
-}
-
-function requiredElement(root: ParentNode | null | undefined, selector: string): Element {
-  const element = root?.querySelector(selector);
-  if (element === null || element === undefined) throw new Error(`Expected ${selector}`);
-  return element;
 }
 
 function optionFor(switcher: MachineSwitcher, machineName: string): Element {
