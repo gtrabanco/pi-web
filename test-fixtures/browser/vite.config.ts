@@ -15,6 +15,7 @@ export default defineConfig({
         navigation: fileURLToPath(new URL("navigation.html", import.meta.url)),
         terminal: fileURLToPath(new URL("terminal.html", import.meta.url)),
         localization: fileURLToPath(new URL("localization.html", import.meta.url)),
+        themes: fileURLToPath(new URL("themes.html", import.meta.url)),
         recovery: fileURLToPath(new URL("recovery.html", import.meta.url)),
         filePreviews: fileURLToPath(new URL("file-previews.html", import.meta.url)),
       },

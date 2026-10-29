@@ -620,7 +620,11 @@ In **Settings → General → Theme**, choose a theme and **Auto** mode, then:
 - **Set as default** shares a default without replacing existing device choices.
 - **Use the default** clears this browser's override.
 
-Unless `PI_WEB_DEFAULT_THEME` enforces the theme, device choices take precedence over the configured default, then the built-in default (PI WEB Dark with Auto on). Enforcement locks theme controls and preserves the saved device choice for when the policy is removed. Auto follows the device's light/dark preference for paired themes; unpaired themes stay selected. Unavailable themes temporarily fall back to Classic without erasing the choice.
+Unless `PI_WEB_DEFAULT_THEME` enforces the theme, device choices take precedence over the configured default, then the built-in default (PI WEB Dark with Auto on). Enforcement locks theme controls and preserves the saved device choice for when the policy is removed. Auto follows the device's light/dark preference for paired themes; unpaired themes stay selected.
+
+The initial page includes the gateway default's details and CSS, including associated pair details and both variants' CSS for Auto. Accepting that theme needs no additional theme request. If the default requires legacy browser activation, the backend supplies Classic while preserving the intended preference. The app appears with the delivered palette; the browser then requests another theme if its saved choice needs one, or applies a legacy theme when its plugin activates. A failed or unavailable choice leaves the current palette usable without erasing the saved choice. General settings load the complete inventory once per dialog, with explicit retry on failure and normal HTTP caching. The browser-native loading screen covers initial application startup, not later browser overrides.
+
+Device choices keep the existing localStorage key `pi-web-app-theme` and `{ themeId, auto }` format. Theme packages use declarative metadata and revision-qualified assets, not cached arbitrary CSS in localStorage or new config files. See [theme packages](plugins.md#css-first-themes) for authoring and migration.
 
 The default belongs to the gateway, not a project or remote machine. Changes apply after settings save or browser config refresh, with no service restart.
 
@@ -628,7 +632,7 @@ The default belongs to the gateway, not a project or remote machine. Changes app
 { "defaultTheme": { "themeId": "themes:pi-web-dark", "auto": true } }
 ```
 
-Use a theme contribution ID rather than a display name. Built-in IDs are `themes:pi-web-dark`, `themes:pi-web-light`, and `themes:classic`.
+Use a theme contribution ID rather than a display name. Built-in IDs remain `themes:pi-web-dark`, `themes:pi-web-light`, `themes:classic`, `themes:paper`, and `themes:graphite` after migration to declarative packages.
 
 ### File icon theme
 

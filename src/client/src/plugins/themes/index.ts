@@ -1,7 +1,47 @@
+import { localization as browserLocalization } from "../../localization/browser";
+import type { LocalizationService, LocalizedMessages } from "../../localization/service";
 import type { PiWebPlugin } from "../types";
 import definitions from "./themes.messages";
 import { materialFileIcons } from "./material/generated";
 
+const builtInThemeMessageKeys = {
+  "themes:pi-web-dark": ["darkName", "darkDescription"],
+  "themes:pi-web-light": ["lightName", "lightDescription"],
+  "themes:classic": ["classicName", "classicDescription"],
+  "themes:paper": ["paperName", "paperDescription"],
+  "themes:graphite": ["graphiteName", "graphiteDescription"],
+  "themes:playground-dark": ["playgroundDarkName", "playgroundDarkDescription"],
+  "themes:playground-light": ["playgroundLightName", "playgroundLightDescription"],
+  "themes:playground": ["playgroundPairName", "playgroundPairDescription"],
+  "themes:pi-web": ["piWebPairName", "piWebPairDescription"],
+  "themes:paper-graphite": ["neutralPairName", "neutralPairDescription"],
+} as const;
+
+const staticThemeMessages = new WeakMap<LocalizationService, LocalizedMessages<typeof definitions>>();
+
+/** Apply live built-in labels after the host qualifies static catalog identities. */
+export function localizeBuiltInThemeMetadata<T extends { id: string; name: string; description?: string }>(
+  contribution: T,
+  localization: LocalizationService = browserLocalization,
+): T {
+  const keys = Object.entries(builtInThemeMessageKeys).find(([id]) => id === contribution.id)?.[1];
+  if (keys === undefined) return contribution;
+  let messages = staticThemeMessages.get(localization);
+  if (messages === undefined) {
+    // Static metadata lives for the application lifetime, independent of browser activation.
+    messages = localization.acquireMessages("plugin:themes:themes", definitions).messages;
+    staticThemeMessages.set(localization, messages);
+  }
+  const labels = messages;
+  return {
+    ...contribution,
+    get name() { return labels.t(keys[0]); },
+    get description() { return labels.t(keys[1]); },
+  };
+}
+
+// Palettes and pairs are discovered statically from pi-web-plugins/themes.
+// Keep the browser plugin for file icons and the existing localization namespace.
 export const themePackPlugin: PiWebPlugin = {
   apiVersion: 5,
   name: "PI WEB Themes",
@@ -16,96 +56,6 @@ export const themePackPlugin: PiWebPlugin = {
         order: 10,
         ...materialFileIcons,
       }],
-      themes: [
-        {
-          id: "pi-web-dark",
-          get name() { return messages.t("darkName"); },
-          get description() { return messages.t("darkDescription"); },
-          order: 10,
-          colorScheme: "dark",
-          stylesheets: [{ id: "palette", url: new URL("./pi-web-dark.css?no-inline", import.meta.url).href }],
-        },
-        {
-          id: "pi-web-light",
-          get name() { return messages.t("lightName"); },
-          get description() { return messages.t("lightDescription"); },
-          order: 20,
-          colorScheme: "light",
-          stylesheets: [{ id: "palette", url: new URL("./pi-web-light.css?no-inline", import.meta.url).href }],
-        },
-        {
-          id: "classic",
-          get name() { return messages.t("classicName"); },
-          get description() { return messages.t("classicDescription"); },
-          order: 30,
-          colorScheme: "dark",
-          stylesheets: [{ id: "palette", url: new URL("./classic.css?no-inline", import.meta.url).href }],
-        },
-        {
-          id: "paper",
-          get name() { return messages.t("paperName"); },
-          get description() { return messages.t("paperDescription"); },
-          order: 40,
-          colorScheme: "light",
-          stylesheets: [{ id: "palette", url: new URL("./paper.css?no-inline", import.meta.url).href }],
-        },
-        {
-          id: "graphite",
-          get name() { return messages.t("graphiteName"); },
-          get description() { return messages.t("graphiteDescription"); },
-          order: 50,
-          colorScheme: "dark",
-          stylesheets: [{ id: "palette", url: new URL("./graphite.css?no-inline", import.meta.url).href }],
-        },
-        {
-          id: "playground-dark",
-          get name() { return messages.t("playgroundDarkName"); },
-          get description() { return messages.t("playgroundDarkDescription"); },
-          order: 60,
-          colorScheme: "dark",
-          stylesheets: [
-            { id: "palette", url: new URL("./playground-dark.css?no-inline", import.meta.url).href },
-            { id: "appearance", url: new URL("./playground.css?no-inline", import.meta.url).href, order: 1100 },
-          ],
-        },
-        {
-          id: "playground-light",
-          get name() { return messages.t("playgroundLightName"); },
-          get description() { return messages.t("playgroundLightDescription"); },
-          order: 70,
-          colorScheme: "light",
-          stylesheets: [
-            { id: "palette", url: new URL("./playground-light.css?no-inline", import.meta.url).href },
-            { id: "appearance", url: new URL("./playground.css?no-inline", import.meta.url).href, order: 1100 },
-          ],
-        },
-      ],
-      themePairs: [
-        {
-          id: "pi-web",
-          get name() { return messages.t("piWebPairName"); },
-          get description() { return messages.t("piWebPairDescription"); },
-          order: 10,
-          light: "pi-web-light",
-          dark: "pi-web-dark",
-        },
-        {
-          id: "paper-graphite",
-          get name() { return messages.t("neutralPairName"); },
-          get description() { return messages.t("neutralPairDescription"); },
-          order: 20,
-          light: "paper",
-          dark: "graphite",
-        },
-        {
-          id: "playground",
-          get name() { return messages.t("playgroundPairName"); },
-          get description() { return messages.t("playgroundPairDescription"); },
-          order: 30,
-          light: "playground-light",
-          dark: "playground-dark",
-        },
-      ],
     } };
   },
 };

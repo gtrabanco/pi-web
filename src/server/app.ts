@@ -1,4 +1,5 @@
 import { existsSync } from "node:fs";
+import { readFile } from "node:fs/promises";
 import { parsePiWebEnvBoolean } from "../shared/configResolution.js";
 import { dirname, join, sep } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -23,6 +24,10 @@ import { registerProjectTrustRoutes } from "./projectTrustRoutes.js";
 import { registerWorkspaceDeletionRoutes } from "./workspaces/workspaceDeletionRoutes.js";
 import { createFilePiWebConfigService, registerConfigRoutes, registerLocalMachineConfigRoutes, type PiWebConfigService } from "./configRoutes.js";
 import { PiWebPluginManifestRuntimeError, PiWebPluginService } from "./piWebPluginService.js";
+import { PiWebPluginCatalog } from "./piWebPluginCatalog.js";
+import { PiWebThemeCatalog, readThemeSelection, registerThemeCatalogRoutes } from "./themeCatalog.js";
+import { createThemeBootstrap, injectThemeBootstrap } from "./themeBootstrap.js";
+import { effectiveAgentConfig } from "../config.js";
 import { createActiveProfilePiPackageService, type PiPackageService } from "./piPackageService.js";
 import { registerPiPackageRoutes } from "./piPackageRoutes.js";
 import { createPiWebStatusCache, type PiWebStatusCache } from "./piWebStatusCache.js";
@@ -55,6 +60,7 @@ export interface AppDependencies {
   sessionDaemon?: SessionProxyDaemon;
   agentProfileProvider?: ActiveAgentProfileProvider;
   piWebPlugins?: Pick<PiWebPluginService, "manifest" | "plugins" | "readAsset">;
+  themeCatalog?: Pick<PiWebThemeCatalog, "themes" | "readAsset">;
   piPackages?: PiPackageService;
   piWebStatusCache?: PiWebStatusCache;
   config?: PiWebConfigService;
@@ -205,6 +211,14 @@ export async function buildApp(deps: AppDependencies = {}): Promise<FastifyInsta
     localRuntime: () => getPiWebRuntime(sessionDaemon),
   });
 
+  // Static gateway themes follow desired configuration, not sessiond's immutable
+  // runtime profile. This endpoint must remain available before runtime startup.
+  const themeCatalog = deps.themeCatalog ?? new PiWebThemeCatalog(new PiWebPluginCatalog({
+    configProvider: readConfig,
+    agentDirProvider: async () => effectiveAgentConfig(process.env, await readConfig()).dir,
+  }));
+  registerThemeCatalogRoutes(app, themeCatalog, configService);
+
   app.get("/pi-web-plugins/manifest.json", async (_request, reply) => withProfileDependency(reply, () => piWebPlugins.manifest()));
 
   app.get<{ Params: { pluginId: string; "*": string } }>("/pi-web-plugins/:pluginId/*", async (request, reply) => {
@@ -272,6 +286,15 @@ export async function buildApp(deps: AppDependencies = {}): Promise<FastifyInsta
   const packagedClientDist = join(dirname(fileURLToPath(import.meta.url)), "..", "client");
   const clientDist = deps.clientDist ?? (existsSync(packagedClientDist) ? packagedClientDist : join(process.cwd(), "dist", "client"));
   if (clientDist !== false && existsSync(clientDist)) {
+    const renderHtml = async (_request: unknown, reply: FastifyReply) => {
+      const html = await readFile(join(clientDist, "index.html"), "utf8");
+      const bootstrap = html.includes("pi-web-theme-data")
+        ? await createThemeBootstrap((preference) => readThemeSelection(themeCatalog, configService, preference), themeCatalog) : undefined;
+      return reply.header("Cache-Control", "private, no-cache").type("text/html; charset=utf-8")
+        .send(injectThemeBootstrap(html, bootstrap));
+    };
+    app.get("/", renderHtml);
+    app.get("/index.html", renderHtml);
     const hashedAssetsDir = join(clientDist, "assets") + sep;
     await app.register(fastifyStatic, {
       root: clientDist,
@@ -290,7 +313,7 @@ export async function buildApp(deps: AppDependencies = {}): Promise<FastifyInsta
       (error) => { app.log.warn({ err: error }, "failed to detect PI WEB deployment flavor"); },
     );
     registerDeploymentIdentityAssetRoutes(app, { clientDist, flavor: deploymentFlavor, installationName: readInstallationName });
-    app.setNotFoundHandler((_request, reply) => reply.sendFile("index.html"));
+    app.setNotFoundHandler(renderHtml);
   }
 
   return app;

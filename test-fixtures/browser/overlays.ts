@@ -10,10 +10,10 @@ import { MessageActionsMenu } from "../../src/client/src/components/chat/Message
 import { StatusBar } from "../../src/client/src/components/StatusBar";
 import { SessionNoticesPanel } from "../../src/client/src/components/SessionNoticesPanel";
 import { appStyles } from "../../src/client/src/components/shared";
-import { PluginRegistry } from "../../src/client/src/plugins/registry";
-import { themePackPlugin } from "../../src/client/src/plugins/themes";
+import themeDefinitions from "../../pi-web-plugins/themes/package.json";
 import { pluginStyles } from "../../src/client/src/plugins/styles";
 import { applyPiWebTheme } from "../../src/client/src/theme";
+import type { QualifiedThemeContribution } from "../../src/client/src/plugins/types";
 
 api.commands = () => Promise.resolve([{ name: "tree", source: "builtin" }]);
 api.files = () => Promise.resolve([{ path: "README.md", kind: "tracked" }]);
@@ -30,8 +30,20 @@ style.textContent = `
 `;
 document.head.append(style);
 
-const themeRegistry = new PluginRegistry();
-await themeRegistry.register({ id: "themes", plugin: themePackPlugin });
+const themePlugin = themeDefinitions.piWeb.plugins[0];
+if (themePlugin === undefined) throw new Error("Missing built-in theme declarations");
+const fixtureThemes: QualifiedThemeContribution[] = themePlugin.themes.map((theme) => ({
+  ...theme,
+  id: `${themePlugin.id}:${theme.id}`,
+  pluginId: themePlugin.id,
+  localId: theme.id,
+  colorScheme: theme.colorScheme === "light" ? "light" : "dark",
+  stylesheets: theme.stylesheets.map((sheet) => ({
+    ...sheet,
+    id: `${themePlugin.id}:${theme.id}:${sheet.id}`,
+    url: new URL(`../../pi-web-plugins/themes/assets/${sheet.path}`, import.meta.url).href,
+  })),
+}));
 pluginStyles.registerRoot(document);
 
 const machine = (id: string, kind: Machine["kind"]): Machine => ({ id, name: id, kind, createdAt: "2026-10-21T00:00:00Z", updatedAt: "2026-10-21T00:00:00Z" });
@@ -127,10 +139,9 @@ window.overlayFixture = {
     await editor.updateComplete;
   },
   applyTheme: async (id) => {
-    const theme = themeRegistry.getThemes().find((theme) => theme.id === id);
+    const theme = fixtureThemes.find((theme) => theme.id === id);
     if (!theme) throw new Error(`Missing fixture theme: ${id}`);
-    applyPiWebTheme(theme);
-    await pluginStyles.setContributions(theme.stylesheets ?? []);
+    await pluginStyles.setTheme(theme.stylesheets ?? [], () => { applyPiWebTheme(theme); });
   },
   mountRenderer: async () => {
     const renderer = new ContentRendererHost();
