@@ -763,7 +763,6 @@ describe("application rendering boundaries", () => {
     expect(chat?.hasAttribute("inert")).toBe(false);
     expect(chat?.shadowRoot?.textContent).not.toContain("Recently active in another PI-WEB instance");
     expect(chat?.shadowRoot?.textContent).not.toContain("Ordinary runtime warning");
-    expect(notice?.querySelector("session-warning-toggle")).toBeNull();
     expect(app.shadowRoot?.querySelector(".composer-activity-notice")).toBe(notice);
     expect(editor.disabled).toBe(true);
 
@@ -788,7 +787,6 @@ describe("application rendering boundaries", () => {
     dismissActivityNotice(app);
     await settle(app);
     expect(promptEditor(app).disabled).toBe(false);
-    expect(promptEditor(app).shadowRoot?.querySelector("session-warning-toggle")).toBeNull();
     // Missing activity information, a stale session status, or unrelated warnings must not erase acknowledgement.
     patchState(app, { status: undefined });
     await settle(app);

@@ -7,6 +7,8 @@ import { applyPiWebTheme, DEFAULT_THEME_PREFERENCE, resolveThemePreference } fro
 import { themePackPlugin } from "./index";
 
 afterEach(() => {
+  document.body.replaceChildren();
+  localStorage.clear();
   document.documentElement.removeAttribute("style");
   delete document.documentElement.dataset["piWebTheme"];
 });
@@ -23,11 +25,30 @@ describe("built-in CSS themes", () => {
       { id: "themes:classic", colorScheme: "dark" },
       { id: "themes:paper", colorScheme: "light" },
       { id: "themes:graphite", colorScheme: "dark" },
+      { id: "themes:playground-dark", colorScheme: "dark" },
+      { id: "themes:playground-light", colorScheme: "light" },
     ]);
     expect(themePairs.map((pair) => ({ id: pair.id, light: pair.light, dark: pair.dark }))).toEqual([
       { id: "themes:pi-web", light: "themes:pi-web-light", dark: "themes:pi-web-dark" },
       { id: "themes:paper-graphite", light: "themes:paper", dark: "themes:graphite" },
+      { id: "themes:playground", light: "themes:playground-light", dark: "themes:playground-dark" },
     ]);
+    for (const prefersLight of [false, true]) {
+      const scheme = prefersLight ? "light" : "dark";
+      const { activeTheme, selectedThemePair } = resolveThemePreference({
+        themes, themePairs, preference: { themeId: "themes:playground-dark", auto: true }, prefersLight,
+      });
+      expect(selectedThemePair?.id).toBe("themes:playground");
+      expect(activeTheme?.id).toBe(`themes:playground-${scheme}`);
+      const sheets = activeTheme?.stylesheets ?? [];
+      expect(sheets.map(({ id }) => id)).toEqual([
+        `themes:playground-${scheme}:palette`,
+        `themes:playground-${scheme}:appearance`,
+      ]);
+      expect(sheets[0]?.url).toContain(`/playground-${scheme}.css?no-inline`);
+      expect(sheets[1]?.url).toContain("/playground.css?no-inline");
+      expect(sheets[1]?.order).toBeGreaterThan(sheets[0]?.order ?? 0);
+    }
     for (const prefersLight of [false, true]) {
       const { activeTheme } = resolveThemePreference({ themes, themePairs, preference: DEFAULT_THEME_PREFERENCE, prefersLight });
       expect(activeTheme?.stylesheets).toHaveLength(1);
@@ -58,8 +79,11 @@ describe("built-in CSS themes", () => {
       paper: ["#ffffff", "#202020"],
       graphite: ["#181818", "#e8e8e8"],
     };
+    // Independent Playground palettes still need the complete variable schema;
+    // their exact colour choices remain experimental and are checked for contrast in browsers.
+    const palettes = { ...expectedColors, "playground-dark": undefined, "playground-light": undefined };
     let properties: string[] | undefined;
-    for (const [id, colors] of Object.entries(expectedColors)) {
+    for (const [id, colors] of Object.entries(palettes)) {
       const css = await readFile(`src/client/src/plugins/themes/${id}.css`, "utf8");
       const declarations = new Map<string, string>();
       walk(parse(css, { parseCustomProperty: false }), {
@@ -69,7 +93,6 @@ describe("built-in CSS themes", () => {
           declarations.set(node.property, node.value.value.trim());
         },
       });
-      expect(css).toMatch(/^:root \{/);
       expect([...declarations.keys()]).toEqual(expect.arrayContaining([
         "--pi-font", "--pi-mono", "--pi-thinking", "--pi-tool",
         "--pi-syntax-comment", "--pi-syntax-keyword", "--pi-syntax-string",
@@ -84,7 +107,10 @@ describe("built-in CSS themes", () => {
           expect([...declarations.keys()], `${id} has an unresolved palette reference`).toContain(reference[1]);
         }
       }
-      expect([declarations.get("--pi-bg"), declarations.get("--pi-text")]).toEqual(colors);
+      if (colors !== undefined) {
+        expect(css).toMatch(/^:root \{/);
+        expect([declarations.get("--pi-bg"), declarations.get("--pi-text")]).toEqual(colors);
+      }
       properties ??= [...declarations.keys()].sort();
       expect([...declarations.keys()].sort()).toEqual(properties);
     }

@@ -57,6 +57,28 @@ export const themePackPlugin: PiWebPlugin = {
           colorScheme: "dark",
           stylesheets: [{ id: "palette", url: new URL("./graphite.css?no-inline", import.meta.url).href }],
         },
+        {
+          id: "playground-dark",
+          get name() { return messages.t("playgroundDarkName"); },
+          get description() { return messages.t("playgroundDarkDescription"); },
+          order: 60,
+          colorScheme: "dark",
+          stylesheets: [
+            { id: "palette", url: new URL("./playground-dark.css?no-inline", import.meta.url).href },
+            { id: "appearance", url: new URL("./playground.css?no-inline", import.meta.url).href, order: 1100 },
+          ],
+        },
+        {
+          id: "playground-light",
+          get name() { return messages.t("playgroundLightName"); },
+          get description() { return messages.t("playgroundLightDescription"); },
+          order: 70,
+          colorScheme: "light",
+          stylesheets: [
+            { id: "palette", url: new URL("./playground-light.css?no-inline", import.meta.url).href },
+            { id: "appearance", url: new URL("./playground.css?no-inline", import.meta.url).href, order: 1100 },
+          ],
+        },
       ],
       themePairs: [
         {
@@ -74,6 +96,14 @@ export const themePackPlugin: PiWebPlugin = {
           order: 20,
           light: "paper",
           dark: "graphite",
+        },
+        {
+          id: "playground",
+          get name() { return messages.t("playgroundPairName"); },
+          get description() { return messages.t("playgroundPairDescription"); },
+          order: 30,
+          light: "playground-light",
+          dark: "playground-dark",
         },
       ],
     } };
