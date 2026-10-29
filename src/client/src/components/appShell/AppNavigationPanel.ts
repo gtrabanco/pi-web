@@ -35,8 +35,6 @@ export class AppNavigationPanel extends LitElement {
 
   @property({ attribute: false }) machines: Machine[] = [];
   @property({ attribute: false }) selectedMachine?: Machine;
-  /** PWA display mode: surfaces the single-machine identity in the header. */
-  @property({ type: Boolean }) locationIndicator = false;
   @property({ attribute: false }) machineStatuses: Record<string, MachineHealth> = {};
   @property({ attribute: false }) machineStatusSnapshots: Record<string, MachineStatusSnapshot> = {};
   @property({ attribute: false }) projects: Project[] = [];
@@ -212,7 +210,6 @@ export class AppNavigationPanel extends LitElement {
           .machines=${this.machines}
           .selected=${this.selectedMachine}
           .onEdit=${this.onEditMachine}
-          .locationIndicator=${this.locationIndicator}
           .statuses=${this.machineStatuses}
           .statusSnapshots=${this.machineStatusSnapshots}
           .onSelect=${(machine: Machine) => this.onSelectMachine?.(machine)}

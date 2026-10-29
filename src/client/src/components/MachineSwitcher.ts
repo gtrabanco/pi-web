@@ -22,8 +22,6 @@ export class MachineSwitcher extends LitElement implements KeyboardNavigableSect
 
   @property({ attribute: false }) machines: Machine[] = [];
   @property({ attribute: false }) selected?: Machine;
-  /** PWA display mode: adds the gateway URL to the machine identity. */
-  @property({ type: Boolean }) locationIndicator = false;
   @property({ attribute: false }) statuses: Record<string, MachineHealth> = {};
   /** Per-machine status trees, keyed by machine id; a machine without one shows no indicator. */
   @property({ attribute: false }) statusSnapshots: Record<string, MachineStatusSnapshot> = {};
@@ -148,7 +146,6 @@ export class MachineSwitcher extends LitElement implements KeyboardNavigableSect
         ${this.renderActivity(machine)}
         <span class="machine-switcher-text">
           <span class="machine-switcher-label"><bdi>${machine.name}</bdi></span>
-          ${this.locationIndicator ? html`<span class="machine-info-url"><bdi dir="ltr">${machineSubtitle(machine)}</bdi></span>` : null}
         </span>
       </div>
     `;
@@ -341,7 +338,7 @@ export class MachineSwitcher extends LitElement implements KeyboardNavigableSect
     .machine-switcher-text { flex: 1 1 auto; min-width: 0; display: grid; gap: 1px; }
     .machine-switcher-kicker { color: var(--pi-muted); font-size: 10px; line-height: 1; text-transform: uppercase; letter-spacing: .02em; }
     .machine-switcher-label { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; font-weight: 600; line-height: 1.2; }
-    .disconnected .machine-switcher-text, .disconnected .machine-info-url { opacity: .55; }
+    .disconnected .machine-switcher-text { opacity: .55; }
     .other-machines-activity { flex: 0 0 auto; display: inline-flex; align-items: center; }
     .machine-chevron { flex: 0 0 auto; color: var(--pi-muted); font-size: 11px; }
     @container machine-selector (max-width: 220px) {
@@ -358,7 +355,6 @@ export class MachineSwitcher extends LitElement implements KeyboardNavigableSect
     .machine-icon.dimmed { filter: grayscale(1); opacity: .45; }
     .machine-option-main .machine-icon { width: 14px; height: 14px; }
     .machine-info { box-sizing: border-box; width: 100%; min-width: 0; min-height: 44px; display: flex; align-items: center; gap: 6px; border: 0; border-radius: 0; background: transparent; color: var(--pi-text); padding: 6px 10px; }
-    .machine-info-url { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; font-weight: 600; }
     .machine-option { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: stretch; }
     .machine-option + .machine-option { border-top: 1px solid var(--pi-border-muted); }
     .machine-option.no-actions { grid-template-columns: minmax(0, 1fr); }
