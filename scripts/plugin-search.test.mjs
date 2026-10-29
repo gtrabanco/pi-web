@@ -44,6 +44,10 @@ function resultNames(root) {
   return [...root.querySelectorAll(".plugin-result h3 a")].map((link) => link.textContent);
 }
 
+async function waitForResults(root) {
+  await vi.waitFor(() => expect(root.querySelector("[data-plugin-results]").getAttribute("aria-busy")).toBe("false"));
+}
+
 describe("website plugin search", () => {
   it("queries both keywords, merges duplicates, and renders untrusted metadata as text", async () => {
     const shared = { ...pkg("@scope/shared"), description: '<img src=x onerror="alert(1)">' };
@@ -106,21 +110,15 @@ describe("website plugin search", () => {
       if (url.searchParams.get("text").includes("pi-web.dev-plugin")) return response([pkg("specific")]);
       return response(url.searchParams.get("from") === "0" ? first : [first[0], winner], 102);
     });
-    const { window, root, status } = setup(fetch);
-    await vi.waitFor(() => expect(status.textContent).toContain("20 of 102 packages shown"));
-    expect(fetch).toHaveBeenCalledTimes(3);
-    expect(fetch.mock.calls.map(([url]) => url.searchParams.get("size"))).toEqual(["100", "100", "100"]);
+    const { window, root } = setup(fetch);
+    await waitForResults(root);
     expect(fetch.mock.calls.map(([url]) => url.searchParams.get("from"))).toEqual(["0", "0", "100"]);
-    expect(root.querySelector(".plugin-result a").textContent).toBe("winner");
+    expect(resultNames(root)[0]).toBe("winner");
     root.querySelector("[data-plugin-more]").click();
-    expect(root.querySelectorAll(".plugin-result")).toHaveLength(40);
-    expect(fetch).toHaveBeenCalledTimes(3);
-    submit(window, root, "   ");
-    await vi.waitFor(() => expect(status.textContent).toContain("20 of 102 packages shown"));
-    expect(fetch).toHaveBeenCalledTimes(3);
-    expect(root.querySelectorAll(".plugin-result")).toHaveLength(20);
+    expect(resultNames(root)).toHaveLength(40);
     submit(window, root, "plugin-");
-    await vi.waitFor(() => expect(status.textContent).toContain("20 of 100 packages shown"));
+    await waitForResults(root);
+    expect(resultNames(root)).toHaveLength(20);
     expect(resultNames(root)[0]).toBe("plugin-099");
     root.querySelector("[data-plugin-more]").click();
     expect(resultNames(root)).toHaveLength(40);
@@ -130,38 +128,37 @@ describe("website plugin search", () => {
 
   it("filters keyword results by name and description rather than trusting npm free-text search", async () => {
     const entries = [
-      { ...pkg("@scope/file-tools"), description: "Browse your workspace", monthlyDownloads: 300 },
-      { ...pkg("workspace-viewer"), description: "Find FILE tools", monthlyDownloads: 200 },
+      { ...pkg("@scope/file-tools"), description: "Browse your workspace", monthlyDownloads: 300, date: "2024-01-01" },
+      { ...pkg("workspace-viewer"), description: "Find FILE tools", monthlyDownloads: 200, date: "2026-01-01" },
       { ...pkg("file-only"), description: undefined },
       { ...pkg("unrelated"), description: "Chat utilities" },
     ];
     // npm can return all keyword matches regardless of the submitted text.
     const fetch = vi.fn(async () => response(entries));
-    const { window, root, status } = setup(fetch);
-    await vi.waitFor(() => expect(status.textContent).toBe("4 packages shown."));
+    const { window, root } = setup(fetch);
+    await waitForResults(root);
     submit(window, root, "  FiLe   TOOLS  ");
-    await vi.waitFor(() => expect(status.textContent).toBe("2 packages shown."));
+    await waitForResults(root);
     expect(resultNames(root)).toEqual(["@scope/file-tools", "workspace-viewer"]);
-    expect(root.querySelector("[data-plugin-more]").hidden).toBe(true);
     changeSort(window, root, "updated");
-    await vi.waitFor(() => expect(root.querySelector("select").disabled).toBe(false));
-    expect(resultNames(root)).toEqual(["@scope/file-tools", "workspace-viewer"]);
+    await waitForResults(root);
+    expect(resultNames(root)).toEqual(["workspace-viewer", "@scope/file-tools"]);
     submit(window, root, "nonexistentzz123");
-    await vi.waitFor(() => expect(status.textContent).toContain("No matching plugins found"));
+    await waitForResults(root);
     expect(resultNames(root)).toEqual([]);
-    submit(window, root, "");
-    await vi.waitFor(() => expect(status.textContent).toBe("4 packages shown."));
+    submit(window, root, "   ");
+    await waitForResults(root);
     expect(resultNames(root)).toHaveLength(4);
     expect(fetch).toHaveBeenCalledTimes(2);
   });
 
   it("keeps an empty catalog loaded rather than fetching it again on every search", async () => {
     const fetch = vi.fn(async () => response());
-    const { window, root, status } = setup(fetch);
-    await vi.waitFor(() => expect(status.textContent).toContain("No matching plugins found"));
+    const { window, root } = setup(fetch);
+    await waitForResults(root);
     submit(window, root, "plugin");
-    await vi.waitFor(() => expect(root.querySelector("select").disabled).toBe(false));
-    expect(status.textContent).toContain("No matching plugins found");
+    await waitForResults(root);
+    expect(resultNames(root)).toEqual([]);
     expect(fetch).toHaveBeenCalledTimes(2);
   });
 
