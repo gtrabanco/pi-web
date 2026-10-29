@@ -3,6 +3,7 @@
 Use focused checks for local feedback; use CI and delivery gates for broad confidence. Pick checks by the boundary changed, not by a habit of running every command before every handoff.
 
 For incremental chat UX changes, see [composing chat behavior](chat-behaviors.md) for capability ownership and internal configuration.
+For website releases and website-only hotfixes, see [website deployments](website-deployments.md).
 
 ## Fast local feedback
 
