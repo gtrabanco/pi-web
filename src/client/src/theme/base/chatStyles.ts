@@ -30,8 +30,9 @@ export const chatStyles = css`
   .session-warning-source { min-width: 0; overflow-wrap: anywhere; color: var(--pi-muted); font-size: 11px; text-transform: uppercase; letter-spacing: .04em; }
   .session-warning-dismiss { position: absolute; inset-block-start: 6px; inset-inline-end: 6px; font-size: 18px; }
   .visually-hidden { position: absolute !important; width: 1px !important; height: 1px !important; padding: 0 !important; margin: -1px !important; overflow: hidden !important; clip: rect(0 0 0 0) !important; clip-path: inset(50%) !important; white-space: nowrap !important; border: 0 !important; }
-  /* Contain sticky headers in the scroller's paint context, below its overlay scrollbar. */
-  .chat { isolation: isolate; --pi-chat-sticky-top: 0px; flex: 1 1 auto; min-width: 0; min-height: 0; overflow-x: hidden; overflow-y: auto; padding: 0; box-sizing: border-box; }
+  /* Contain sticky headers below the overlay scrollbar. Disable native anchoring
+     to avoid browser-driven jumps; ChatScrollFlows anchors history prepends. */
+  .chat { isolation: isolate; --pi-chat-sticky-top: 0px; flex: 1 1 auto; min-width: 0; min-height: 0; overflow-x: hidden; overflow-y: auto; overflow-anchor: none; padding: 0; box-sizing: border-box; }
   .chat-wrap > .chat-jumps { position: absolute; right: 0; bottom: 0; }
   .chat-wrap.plain .msg-header, .chat-wrap.plain .event-group > summary { position: static; top: auto; }
   .chat-wrap.plain *, .chat-wrap.plain *::before, .chat-wrap.plain *::after { transition: none !important; animation: none !important; box-shadow: none !important; text-shadow: none !important; filter: none !important; backdrop-filter: none !important; transform: none !important; border-radius: 0 !important; }
