@@ -42,7 +42,8 @@ import { sessionCleanupRequestKey } from "../sessionCleanupUi";
 import { sessionCleanupMessages } from "../sessionCleanupMessages";
 import { selectedNotificationView } from "../sessionNotifications";
 import { SessionUnreadController, type SessionUnreadCompletion } from "../sessionUnread";
-import { initialSessionWarningVisibilityState, reconcileSessionWarningVisibility, toggleSessionWarnings } from "../sessionWarningVisibility";
+import { sessionNotices } from "../plugins/core/notices";
+import type { SessionNoticeDismissDetail } from "./SessionNoticesPanel";
 import { RealtimeSocket, type BrowserRealtimeEvent } from "../sessionSocket";
 import { serverNoticeMessage } from "../serverNoticeMessages";
 import { ServerNoticesController, visibleServerNotices } from "../serverNotices";
@@ -418,7 +419,6 @@ export class PiWebApp extends LitElement {
   @state() private quietMode = false;
   @state() private workspaceUploadDefaultFolder = effectiveWorkspaceUploadFolder(undefined);
   @state() private workspaceAttachmentsDefaultFolder = effectiveWorkspaceAttachmentsFolder(undefined);
-  private sessionWarningVisibility = initialSessionWarningVisibilityState();
   /** Browser-local acknowledgement, retained per machine/session until activity elsewhere clears. */
   private readonly dismissedActivityNotices = new Set<string>();
   private readonly onPopState = () => {
@@ -463,7 +463,6 @@ export class PiWebApp extends LitElement {
 
   protected override willUpdate(): void {
     this.toggleAttribute("pwa-display-mode", this.appShell.isPwaDisplayMode);
-    this.syncSessionWarningVisibility();
     this.syncSessionActivityAcknowledgement();
   }
 
@@ -513,15 +512,6 @@ export class PiWebApp extends LitElement {
   private isChatVisible(): boolean {
     const mainView = this.effectiveMainView();
     return mainView === "chat" || (mainView === "navigation" && !this.appShell.isMobileNavigationLayout) || this.isDesktopSideBySideLayout();
-  }
-
-  private syncSessionWarningVisibility(): void {
-    const session = this.state.selectedSession;
-    this.sessionWarningVisibility = reconcileSessionWarningVisibility(
-      this.sessionWarningVisibility,
-      session === undefined ? undefined : machineSessionKey(selectedMachineId(this.state), session.id),
-      this.state.status?.sessionId === session?.id ? this.state.status?.warnings ?? [] : undefined,
-    );
   }
 
   private syncSessionActivityAcknowledgement(): void {
@@ -1950,6 +1940,8 @@ export class PiWebApp extends LitElement {
     const state = this.state;
     return [
       state.selectedMachine, state.selectedWorkspace, state.selectedSession,
+      // Core Notices observes conditions, not per-token status churn.
+      JSON.stringify(sessionNotices(state)),
       state.workspaceTool, state.mainView, state.piWebStatus, this.appShell.isMobileNavigationLayout,
       state.selectedProject, state.projects, state.workspaces,
       state.isLoadingProjects, state.isLoadingWorkspaces, this.workspaceContentError(),
@@ -1966,6 +1958,7 @@ export class PiWebApp extends LitElement {
     return html`
       <workspace-panel
         id="workspace-panel"
+        @session-notice-dismiss=${this.handleNoticeDismiss}
         .workspace=${workspace}
         .emptyState=${emptyState}
         .error=${this.workspaceContentError()}
@@ -3794,7 +3787,9 @@ export class PiWebApp extends LitElement {
     void this.sessions.clearServerQueue();
   };
 
-  private readonly handleDismissWarning = (dismissId: string): void => {
+  private readonly handleNoticeDismiss = (event: CustomEvent<SessionNoticeDismissDetail>): void => {
+    const { machineId, sessionId, dismissId } = event.detail;
+    if (machineId !== selectedMachineId(this.state) || sessionId !== this.state.selectedSession?.id) return;
     void this.sessions.dismissWarning(dismissId);
   };
 
@@ -3814,13 +3809,6 @@ export class PiWebApp extends LitElement {
 
   private readonly handleDismissAllNotifications = (): void => {
     void this.notifications.dismissAll();
-  };
-
-  private readonly handleToggleWarnings = (): void => {
-    const next = toggleSessionWarnings(this.sessionWarningVisibility);
-    if (next === this.sessionWarningVisibility) return;
-    this.sessionWarningVisibility = next;
-    this.requestUpdate();
   };
 
   private readonly handleSelectModel = (): void => {
@@ -4012,15 +4000,12 @@ export class PiWebApp extends LitElement {
       this.notificationView = selectedNotificationView(state.selectedNotificationInbox);
     }
     return html`
-      <chat-view .onNavigationChange=${this.handleChatNavigationChange} .quietMode=${this.quietMode} .behaviors=${this.chatBehaviors} .contentRendering=${this.plugins.getChatContentRendering(selectedMachineId(state))} .machineId=${selectedMachineId(state)} @workspace-file-open=${this.handleWorkspaceFileOpen} .workspaceContext=${this.chatWorkspaceContext} .sessionId=${session.id} .sessionCwd=${session.cwd} .onMessageAction=${this.handleMessageAction} .onDisplayedMessageAction=${this.handleDisplayedMessageAction} .messageActions=${this.plugins.getMessageActions(selectedMachineId(state))} .messageActionContext=${this.messageActionContext(state)} .messages=${state.messages} .messageStart=${state.messagePageStart} .messageEnd=${state.messagePageEnd} .messageTotal=${state.messagePageTotal} .hasMore=${state.messagePageStart > 0} .historyReady=${this.readyChatIdentity === selectedChatIdentity(state)} .loadingMore=${state.isLoadingEarlierMessages} .isSendingPrompt=${state.sendingPrompts[session.id] === true} .isCompacting=${state.status?.isCompacting === true} .pendingMessageCount=${state.status?.pendingMessageCount ?? 0} .clientQueuedMessages=${state.clientQueuedSessionMessages[session.id] ?? this.emptyClientQueue} .status=${state.status} .activity=${state.activity} .pendingDialogs=${state.pendingDialogs} .closedDialogs=${state.closedDialogs} .onAnswerDialog=${this.handleAnswerDialog} .onCancelDialog=${this.handleCancelDialog} .onDismissClosedDialog=${this.handleDismissClosedDialog} .askDraftSessionId=${machineSessionKey(selectedMachineId(state), session.id)} .onSubmitAsk=${session.archived === true ? undefined : this.handleSubmitAsk} .notificationInbox=${this.notificationView} .onClearServerQueue=${this.handleClearServerQueue} .onQueuedMessageAction=${session.archived === true ? undefined : this.handleQueuedMessageAction} .queuedMessageActionPending=${this.queuedMessageActionTarget !== undefined || this.messageRevertTarget !== undefined} .onDismissWarning=${this.handleDismissWarning} .onDismissNotification=${this.handleDismissNotification} .onDismissAllNotifications=${this.handleDismissAllNotifications} .warningsVisible=${!this.sessionWarningVisibility.collapsed} .onToggleWarnings=${this.handleToggleWarnings} .onLoadMore=${this.handleLoadEarlierMessages}></chat-view>
+      <chat-view .onNavigationChange=${this.handleChatNavigationChange} .quietMode=${this.quietMode} .behaviors=${this.chatBehaviors} .contentRendering=${this.plugins.getChatContentRendering(selectedMachineId(state))} .machineId=${selectedMachineId(state)} @workspace-file-open=${this.handleWorkspaceFileOpen} .workspaceContext=${this.chatWorkspaceContext} .sessionId=${session.id} .sessionCwd=${session.cwd} .onMessageAction=${this.handleMessageAction} .onDisplayedMessageAction=${this.handleDisplayedMessageAction} .messageActions=${this.plugins.getMessageActions(selectedMachineId(state))} .messageActionContext=${this.messageActionContext(state)} .messages=${state.messages} .messageStart=${state.messagePageStart} .messageEnd=${state.messagePageEnd} .messageTotal=${state.messagePageTotal} .hasMore=${state.messagePageStart > 0} .historyReady=${this.readyChatIdentity === selectedChatIdentity(state)} .loadingMore=${state.isLoadingEarlierMessages} .isSendingPrompt=${state.sendingPrompts[session.id] === true} .isCompacting=${state.status?.isCompacting === true} .pendingMessageCount=${state.status?.pendingMessageCount ?? 0} .clientQueuedMessages=${state.clientQueuedSessionMessages[session.id] ?? this.emptyClientQueue} .status=${state.status} .activity=${state.activity} .pendingDialogs=${state.pendingDialogs} .closedDialogs=${state.closedDialogs} .onAnswerDialog=${this.handleAnswerDialog} .onCancelDialog=${this.handleCancelDialog} .onDismissClosedDialog=${this.handleDismissClosedDialog} .askDraftSessionId=${machineSessionKey(selectedMachineId(state), session.id)} .onSubmitAsk=${session.archived === true ? undefined : this.handleSubmitAsk} .notificationInbox=${this.notificationView} .onClearServerQueue=${this.handleClearServerQueue} .onQueuedMessageAction=${session.archived === true ? undefined : this.handleQueuedMessageAction} .queuedMessageActionPending=${this.queuedMessageActionTarget !== undefined || this.messageRevertTarget !== undefined} .onDismissNotification=${this.handleDismissNotification} .onDismissAllNotifications=${this.handleDismissAllNotifications} .onLoadMore=${this.handleLoadEarlierMessages}></chat-view>
     `;
   }
 
   private renderStatusBar(state: AppState) {
-    const warningCount = this.sessionWarningVisibility.warningCount;
-    return html`
-      <status-bar slot="status" .status=${state.status} .warningCount=${warningCount} .warningsExpanded=${warningCount > 0 && !this.sessionWarningVisibility.collapsed} .onToggleWarnings=${this.handleToggleWarnings}></status-bar>
-    `;
+    return html`<status-bar slot="status" .status=${state.status}></status-bar>`;
   }
 
   private readonly handleOpenNavigationSection = (section: NavigationSection) => { this.openNavigationSection(section); };

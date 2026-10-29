@@ -11,8 +11,6 @@ import * as transcript from "./chatTranscriptTemplates";
 import type { TranscriptRenderContext } from "./chatTranscriptTemplates";
 import { ChatDisclosureController } from "../chatDisclosure";
 import { writeClipboardText } from "../clipboard";
-import { chatSessionWarningRows, renderSessionWarnings } from "./chat/SessionWarnings";
-export { chatSessionWarningRows } from "./chat/SessionWarnings";
 import { type QueuedMessageAction, type QueuedMessageActionTarget } from "../queuedMessageActions";
 import { chatQueuedMessageSections, renderQueuedMessageSection, type QueuedMessageSection } from "./chat/QueuedMessages";
 export { chatQueuedMessageSections, chatQueuedSectionShowsClearAction, type QueuedMessageSection } from "./chat/QueuedMessages";
@@ -158,11 +156,8 @@ export class ChatView extends LitElement {
   @property({ attribute: false }) onQueuedMessageAction?: (target: QueuedMessageActionTarget) => Promise<void>;
   @property({ type: Boolean }) queuedMessageActionPending = false;
   @state() private queuedCopyFailed = false;
-  @property({ attribute: false }) onDismissWarning?: (dismissId: string) => void;
   @property({ attribute: false }) onDismissNotification?: (notificationId: string) => void;
   @property({ attribute: false }) onDismissAllNotifications?: () => void;
-  @property({ type: Boolean }) warningsVisible = true;
-  @property({ attribute: false }) onToggleWarnings?: () => void;
   @property({ attribute: false }) onLoadMore?: () => void;
   @property({ attribute: false }) behaviors: ChatBehaviors = DEFAULT_CHAT_BEHAVIORS;
   /**
@@ -251,10 +246,6 @@ export class ChatView extends LitElement {
   private readonly handleClearServerQueue = (): void => {
     this.onClearServerQueue?.();
   };
-  private readonly handleToggleWarnings = (): void => {
-    this.onToggleWarnings?.();
-  };
-
   override connectedCallback(): void {
     super.connectedCallback();
     window.addEventListener("resize", this.onViewportResize);
@@ -394,7 +385,6 @@ export class ChatView extends LitElement {
 
   private renderTopNotices() {
     return html`<div class="top-notices">
-      ${this.renderWarnings()}
       <session-notification-tray
         .sessionId=${this.sessionId}
         .notificationInbox=${this.notificationInbox}
@@ -402,15 +392,6 @@ export class ChatView extends LitElement {
         .onDismissAllNotifications=${this.onDismissAllNotifications}
       ></session-notification-tray>
     </div>`;
-  }
-
-  private renderWarnings() {
-    const rows = chatSessionWarningRows(this.status);
-    if (!this.warningsVisible || rows.length === 0) return null;
-    return renderSessionWarnings(rows,
-      this.onToggleWarnings === undefined ? undefined : this.handleToggleWarnings,
-      this.onDismissWarning,
-    );
   }
 
   private groupedMessages(): ChatGroup[] {

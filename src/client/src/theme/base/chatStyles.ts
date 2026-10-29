@@ -13,22 +13,7 @@ export const chatStyles = css`
   .chat-wrap { --pi-chat-jump-size: 28px; position: relative; flex: 1 1 auto; min-width: 0; min-height: 0; overflow: visible; display: flex; flex-direction: column; }
   .top-notices { box-sizing: border-box; flex: 0 0 auto; max-height: 40%; min-height: 0; display: flex; flex-direction: column; overflow: hidden; border-bottom: 1px solid var(--pi-border); background: var(--pi-bg-overlay); }
   /* Empty notification hosts retain live regions without leaving a visible stack boundary. */
-  .top-notices:not(:has(> .session-warnings)):has(> session-notification-tray[empty]) { border-bottom: 0; }
-  .top-notices:has(> session-notification-tray[empty]) > .session-warnings { flex: 1 1 auto; max-height: 100%; border-bottom: 0; }
-  .session-warnings { flex: 0 1 auto; display: grid; gap: 0; max-height: 50%; min-height: 0; overflow-y: auto; box-sizing: border-box; padding: 0; border-bottom: 1px solid var(--pi-border-muted); }
-  .session-warnings:only-child { flex: 1 1 auto; max-height: 100%; border-bottom: 0; }
-  .session-warnings-controls { display: flex; justify-content: flex-end; padding-inline: 16px; }
-  .session-warnings-collapse-icon { width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; pointer-events: none; }
-  .session-warning { --ui-transcript-bg: var(--pi-warning-surface); --warning-colour: var(--pi-warning); position: relative; display: grid; gap: 4px; min-height: 44px; padding-block: 10px; padding-inline: 16px 44px; color: var(--pi-text); }
-  .session-warning.error { --ui-transcript-bg: color-mix(in srgb, var(--pi-danger) 12%, var(--pi-surface)); --warning-colour: var(--pi-danger); }
-  .session-warning.info { --ui-transcript-bg: var(--pi-selection-bg); --warning-colour: var(--pi-accent); }
-  .session-warning-head { display: flex; align-items: center; gap: 8px; min-height: 16px; color: var(--warning-colour); }
-  .session-warning-icon { flex: 0 0 auto; width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
-  .session-warning-body { min-width: 0; display: grid; gap: 3px; }
-  .session-warning-message { margin: 0; overflow-wrap: anywhere; }
-  .session-warning-path { margin: 0; color: var(--pi-muted); font-size: 12px; font-family: var(--pi-mono, ui-monospace, SFMono-Regular, Menlo, Consolas, monospace); overflow-wrap: anywhere; }
-  .session-warning-source { min-width: 0; overflow-wrap: anywhere; color: var(--pi-muted); font-size: 11px; text-transform: uppercase; letter-spacing: .04em; }
-  .session-warning-dismiss { position: absolute; inset-block-start: 6px; inset-inline-end: 6px; font-size: 18px; }
+  .top-notices:has(> session-notification-tray[empty]) { border-bottom: 0; }
   .visually-hidden { position: absolute !important; width: 1px !important; height: 1px !important; padding: 0 !important; margin: -1px !important; overflow: hidden !important; clip: rect(0 0 0 0) !important; clip-path: inset(50%) !important; white-space: nowrap !important; border: 0 !important; }
   /* Contain sticky headers below the overlay scrollbar. Disable native anchoring
      to avoid browser-driven jumps; ChatScrollFlows anchors history prepends. */

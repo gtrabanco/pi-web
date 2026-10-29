@@ -15,6 +15,7 @@ import { sidebarListStyles } from "./sidebarListStyles";
 import { formattedTextStyles } from "./formattedTextStyles";
 import { codeBlockFrameStyles } from "./codeBlockFrameStyles";
 import { sessionNotificationTrayStyles } from "./sessionNotificationTrayStyles";
+import { sessionNoticesStyles } from "./sessionNoticesStyles";
 import {
   appStyles, workspacePanelStyles, listStyles, statusBarStyles,
   autocompleteStyles, promptEditorLayoutStyles,
@@ -26,7 +27,7 @@ describe("base theme cascade boundary", () => {
   const styles = {
     ...controls, ...dialogs, uiFormStyles, uiFileListStyles, uiSettingsStyles,
     uiNoticeStyles, uiTranscriptStyles, uiTranscriptCardStyles, chatStyles, conversationLayoutStyles,
-    chatNavigationStyles, sidebarListStyles, formattedTextStyles,
+    chatNavigationStyles, sidebarListStyles, formattedTextStyles, sessionNoticesStyles,
     codeBlockFrameStyles, sessionNotificationTrayStyles, appStyles, workspacePanelStyles, listStyles, statusBarStyles,
     autocompleteStyles, promptEditorLayoutStyles,
   };

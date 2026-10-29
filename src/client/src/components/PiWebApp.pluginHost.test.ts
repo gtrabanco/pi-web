@@ -10,7 +10,7 @@ import { InMemoryTerminalSelectionMemory } from "../../../../pi-web-plugins/term
 import type { QualifiedContributionId, WorkspaceFilesCapabilityV1, WorkspacePanelContext as PublicWorkspacePanelContext } from "../../../plugin-api";
 import type { Machine, Project, SessionInfo, TerminalCommandRun, Workspace, WorkspaceProviderResolution } from "../api";
 import { machineScopedBundledPluginId, machineScopedPluginId } from "../../../shared/machinePluginIds";
-import { initialAppState } from "../appState";
+import { initialAppState, type AppState } from "../appState";
 import { localization } from "../localization/browser";
 import { pluginRecoveryMessages as recovery } from "../pluginRecoveryMessages";
 import { AppShellController } from "../appShell/appShellController";
@@ -3384,6 +3384,35 @@ describe("PiWebApp plugin host", () => {
     expect(browser.replaced).toEqual([]);
     expect(callAppMethod(app, "visibleBrowserErrorsForCurrentRoute", appState(app))).toEqual([]);
     expect(appState(app).browserErrors).toEqual({});
+  });
+
+  it("treats an old Notices history entry as unavailable after conditions clear without rewriting history", async () => {
+    const browser = installBrowserWindow("http://localhost/app?project=project-1&workspace=workspace-1&view=chat&step=origin");
+    const app = createDetachedApp();
+    const selectedSession = runtimeRecoverySession(workspace);
+    const status: NonNullable<AppState["status"]> = {
+      sessionId: selectedSession.id, isStreaming: false, isCompacting: false, isBashRunning: false,
+      pendingMessageCount: 0, queuedMessages: [], cost: 0,
+      tokens: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 },
+      warnings: [{ severity: "warning", message: "Persistent condition" }],
+    };
+    setAppState(app, { ...initialAppState(), selectedProject: project, selectedWorkspace: workspace, workspaces: [workspace], selectedSession, status, mainView: "chat" });
+    await markPluginLoadingReady(app);
+    expect(callAppMethod(app, "visibleWorkspacePanels")).toEqual(expect.arrayContaining([expect.objectContaining({ id: "core:notices" })]));
+    window.history.pushState({}, "", "?project=project-1&workspace=workspace-1&tool=core%3Anotices&view=workspace&step=notices");
+    window.history.pushState({}, "", "?project=project-1&workspace=workspace-1&view=chat&step=later");
+    setAppState(app, { ...appState(app), status: { ...status, warnings: [] } });
+    browser.pushed.splice(0); browser.replaced.splice(0);
+    window.history.back();
+    await vi.waitFor(() => { expect(browser.url.searchParams.get("step")).toBe("notices"); });
+    callAppMethod(app, "onPopState");
+    await vi.waitFor(() => { expect(appState(app).mainView).toBe("workspace"); });
+    expect(callAppMethod(app, "availableWorkspacePanelId", "core:notices")).toBeUndefined();
+    expect(callAppMethod(app, "workspaceContentError")).not.toBe("");
+    expect(browser.url.searchParams.get("tool")).toBe("core:notices");
+    expect(browser.pushed).toHaveLength(0); expect(browser.replaced).toHaveLength(0);
+    window.history.back();
+    await vi.waitFor(() => { expect(browser.url.searchParams.get("step")).toBe("origin"); });
   });
 
   it("preserves an unavailable panel on popstate and the adjacent history entries", async () => {
