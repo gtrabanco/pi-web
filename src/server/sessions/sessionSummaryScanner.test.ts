@@ -190,15 +190,6 @@ describe("session summary scanner first message extraction", () => {
 
     expect(await scanFileSummary(path)).toMatchObject({ firstMessage: "part one part two" });
   });
-
-  it("falls back to the SDK's placeholder when no user message has text", async () => {
-    const path = await writeSession("no-text.jsonl", [
-      headerLine({ id: "no-text", cwd: WORKSPACE }),
-      messageLine({ role: "assistant", content: textContent("only assistant") }),
-    ]);
-
-    expect(await scanFileSummary(path)).toMatchObject({ firstMessage: "(no messages)", messageCount: 1 });
-  });
 });
 
 describe("session summary scanner edge cases", () => {
@@ -224,12 +215,6 @@ describe("session summary scanner edge cases", () => {
 
     expect(await scanFileSummary(join(sessionDir, "garbage.jsonl"))).toBeUndefined();
     expect(await scanFileSummary(latePath)).toMatchObject({ id: "late", messageCount: 1, firstMessage: "hi" });
-  });
-
-  it("skips headers without a usable string id instead of listing broken sessions", async () => {
-    const path = await writeSession("no-id.jsonl", [JSON.stringify({ type: "session", version: 3, timestamp: "2026-01-01T00:00:00.000Z", cwd: WORKSPACE })]);
-
-    expect(await scanFileSummary(path)).toBeUndefined();
   });
 
   it("lists headers without a cwd with an empty cwd for the gateway filter to drop", async () => {

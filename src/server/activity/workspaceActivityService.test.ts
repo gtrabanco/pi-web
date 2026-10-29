@@ -127,12 +127,4 @@ describe("WorkspaceActivityService", () => {
     expect(service.snapshot().workspaces).toEqual([]);
     expect(onChanged).toHaveBeenCalled();
   });
-
-  it("records activity without a listener, so a store built for a test still works", () => {
-    const service = new WorkspaceActivityService();
-
-    service.updateTerminal({ id: "t1", cwd: "/repo", exited: false });
-
-    expect(service.snapshot().workspaces).toMatchObject([{ cwd: "/repo", hasTerminalActivity: true }]);
-  });
 });

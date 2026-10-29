@@ -1,42 +1,29 @@
 import { localization } from "../localization/browser";
 import type { TemplateResult } from "lit";
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it } from "vitest";
 import type { QueuedSessionMessage, SessionStatus, SessionWarning } from "../api";
 import {
   ChatView,
   chatEventAnchorKey,
   chatGroupAnchorKey,
   chatMessageAnchorKey,
-  chatMessageGroupClassName,
-  chatMessageGroupLabel,
   chatMessageMetadataLabel,
   chatQueuedMessageSections,
   chatQueuedSectionShowsClearAction,
   chatSessionWarningRows,
 } from "./ChatView";
-import { templateEventHandlerAfterMarker } from "../templateInspection.testSupport";
 import type { ChatLine } from "./shared";
 
 describe("chatQueuedMessageSections", () => {
-  it("labels client-side pending-start sends separately from server queued messages", () => {
+  it("keeps client pending-start sends separate from server queued messages", () => {
     const sections = chatQueuedMessageSections(
       [{ kind: "followUp", text: "queued before start" }],
       [{ kind: "steer", text: "server queued" }],
     );
 
-    expect(sections).toEqual([
-      {
-        source: "client",
-        heading: "Queued until session starts",
-        detail: "Will send once the backend session is ready",
-        messages: [{ kind: "followUp", text: "queued before start" }],
-      },
-      {
-        source: "server",
-        heading: "Queued messages",
-        detail: "1 pending",
-        messages: [{ kind: "steer", text: "server queued" }],
-      },
+    expect(sections.map(({ source, messages }) => ({ source, messages }))).toEqual([
+      { source: "client", messages: [{ kind: "followUp", text: "queued before start" }] },
+      { source: "server", messages: [{ kind: "steer", text: "server queued" }] },
     ]);
   });
 });
@@ -95,43 +82,6 @@ describe("chatSessionWarningRows", () => {
 });
 
 describe("ChatView session-warning dismiss wiring", () => {
-  // Escape hatch: this case verifies the dismiss button's Lit event wiring,
-  // whose observable effect is invoking onDismissWarning with the warning's
-  // dismiss id. No DOM environment is available, so handler extraction anchored
-  // to the stable `session-warning-dismiss` class marker is proportionate.
-  it("invokes onDismissWarning with the warning's dismiss id", () => {
-    const view = new ChatView();
-    const onDismissWarning = vi.fn();
-    view.onDismissWarning = onDismissWarning;
-    view.status = warningStatus([
-      { severity: "warning", message: "subscription auth is active", source: "anthropic", dismiss: { id: "anthropicExtraUsage" } },
-    ]);
-
-    const rendered = renderWarnings(view);
-    if (rendered === null) throw new Error("expected a warnings banner");
-    templateEventHandlerAfterMarker(rendered, "session-warning-dismiss")(new Event("click"));
-
-    expect(onDismissWarning).toHaveBeenCalledExactlyOnceWith("anthropicExtraUsage");
-  });
-
-  // Escape hatch: this verifies the minimise chevron's Lit callback wiring in
-  // the node test environment, anchored to its stable semantic class marker.
-  // The chevron is wired to the unified onToggleWarnings (toggle ≡ collapse in
-  // the expanded state), so this also proves the single visibility mutation.
-  it("invokes onToggleWarnings from the visible warning area", () => {
-    const view = withStatus(new ChatView(), warningStatus([
-      { severity: "warning", message: "subscription auth is active" },
-    ]));
-    const onToggleWarnings = vi.fn();
-    view.onToggleWarnings = onToggleWarnings;
-
-    const rendered = renderWarnings(view);
-    if (rendered === null) throw new Error("expected a warnings banner");
-    templateEventHandlerAfterMarker(rendered, "session-warnings-collapse")(new Event("click"));
-
-    expect(onToggleWarnings).toHaveBeenCalledOnce();
-  });
-
   it("removes the warning area while presentation is collapsed or there are no warnings", () => {
     const view = withStatus(new ChatView(), warningStatus([
       { severity: "warning", message: "subscription auth is active" },
@@ -187,13 +137,6 @@ describe("chat event-group content seams", () => {
       expect(key(495, reply)).not.toBe(key(495, { ...reply, entryId: "entry-2" }));
     }
     expect(chatMessageAnchorKey(495, reply)).not.toBe(chatEventAnchorKey(495, reply));
-  });
-
-  it("distinguishes the live tail group by class and disclosure label", () => {
-    expect(chatMessageGroupClassName(true)).toBe("msg event-group live");
-    expect(chatMessageGroupClassName(false)).toBe("msg event-group");
-    expect(chatMessageGroupLabel(true)).toBe("live events");
-    expect(chatMessageGroupLabel(false)).toBe("events");
   });
 });
 

@@ -197,45 +197,6 @@ export function findOptionalTemplateEventHandlerAfterValue<E extends Event = Eve
   }
 }
 
-/**
- * Find a click handler on the deepest template whose flattened text includes
- * `text`.
- *
- * Anchors wiring to user-facing row/label text (e.g. a file name) rather than
- * incidental handler order.
- */
-export function templateClickHandlerForText<E extends Event = Event>(template: TemplateResult, text: string, clickMarker = "@click"): TemplateEventHandler<E> {
-  const handler = findOptionalTemplateClickHandlerForText<E>(template, text, clickMarker);
-  if (handler === undefined) throw new Error(`Expected click handler near ${text}`);
-  return handler;
-}
-
-/** Optional variant of {@link templateClickHandlerForText}. */
-export function findOptionalTemplateClickHandlerForText<E extends Event = Event>(value: unknown, text: string, clickMarker = "@click"): TemplateEventHandler<E> | undefined {
-  if (Array.isArray(value)) {
-    for (const item of value) {
-      const nested = findOptionalTemplateClickHandlerForText<E>(item, text, clickMarker);
-      if (nested !== undefined) return nested;
-    }
-    return undefined;
-  }
-  if (!isTemplateResult(value)) return undefined;
-
-  for (const item of templateValues(value)) {
-    const nested = findOptionalTemplateClickHandlerForText<E>(item, text, clickMarker);
-    if (nested !== undefined) return nested;
-  }
-  if (!templateText(value).includes(text)) return undefined;
-
-  const strings = templateStrings(value);
-  const values = templateValues(value);
-  for (let index = 0; index < values.length; index += 1) {
-    const candidate = values[index];
-    if (strings[index]?.includes(clickMarker) === true && isTemplateEventHandler<E>(candidate)) return candidate;
-  }
-  return undefined;
-}
-
 function isStringArray(value: unknown): value is string[] {
   return Array.isArray(value) && value.every((item: unknown) => typeof item === "string");
 }

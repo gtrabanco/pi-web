@@ -132,6 +132,7 @@ it("keeps the countdown regional, display-only and on the same deadline across l
   await card.updateComplete;
   expect(root.querySelector(".countdown")?.textContent).toBe(extensionDialogMessages.t("imminent"));
   expect(root.querySelector("[aria-live]")).toBeNull();
+  expect(root.querySelector(".countdown")?.getAttribute("role")).toBeNull();
   expect(cancel).not.toHaveBeenCalled();
   expect(extensionDialogCountdownText("2026-07-27T12:59:59Z", now)).toBe(extensionDialogMessages.t("hours", { hours: 2, minutes: 59 }));
   expect(extensionDialogCountdownText("2026-07-27T10:00:45Z", now)).toBe(extensionDialogMessages.t("seconds", { seconds: 45 }));
