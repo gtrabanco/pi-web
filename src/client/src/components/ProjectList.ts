@@ -23,6 +23,7 @@ export class ProjectList extends LitElement implements KeyboardNavigableSection 
 
   @property({ attribute: false }) projects: Project[] = [];
   @property({ attribute: false }) selected?: Project;
+  @property({ type: Boolean }) selectionLoading = false;
   /** Status tree of the machine these projects belong to; absent means no indicators. */
   @property({ attribute: false }) statusSnapshot: MachineStatusSnapshot | undefined;
   @property({ type: Boolean, reflect: true }) collapsible = false;
@@ -71,7 +72,7 @@ export class ProjectList extends LitElement implements KeyboardNavigableSection 
       <section data-ui-context="projects" data-collapsed=${String(this.collapsed)}>
         <h2 class="ui-toolbar">${this.renderHeading()}</h2>
         ${this.collapsed ? null : html`
-          <div class="list-body ui-nav-list">
+          <div class="list-body ui-nav-list" aria-busy=${String(this.selectionLoading)}>
             ${repeat(this.projects, (project) => project.id, (project, index) => {
               const flags = this.statusSnapshot?.projects[project.id];
               const kind = statusActivityKind(flags);
@@ -131,7 +132,7 @@ export class ProjectList extends LitElement implements KeyboardNavigableSection 
     if (!this.collapsible) return html`<span>${messages.t("projects")}</span>`;
     const selectedSummary = this.selected?.name ?? messages.t("noProject");
     const selectedTitle = this.selected?.path ?? selectedSummary;
-    return html`<button class="ui-button ui-toolbar-title section-toggle ui-nav-section-toggle" aria-expanded=${String(!this.collapsed)} @click=${() => { this.onToggleCollapsed?.(); }}><span class="section-title"><span class="section-name">${this.collapsed ? "▸" : "▾"} ${messages.t("projects")}</span>${this.collapsed ? html`<small class="section-selected" title=${selectedTitle}>${selectedSummary}</small>` : null}</span><small class="section-count">${localization.number(this.projects.length)}</small></button>`;
+    return html`<button class="ui-button ui-toolbar-title section-toggle ui-nav-section-toggle" aria-expanded=${String(!this.collapsed)} @click=${() => { this.onToggleCollapsed?.(); }}><span class="section-title"><span class="section-name">${this.collapsed ? "▸" : "▾"} ${messages.t("projects")}</span>${this.collapsed ? html`<small class="section-selected" title=${selectedTitle}>${selectedSummary}</small>` : null}</span><small class="section-count" role=${this.selectionLoading ? "status" : nothing}>${this.selectionLoading ? messages.t("openingProject") : localization.number(this.projects.length)}</small></button>`;
   }
 
   private renderActivity(kind: ReturnType<typeof statusActivityKind>, unread: boolean) {

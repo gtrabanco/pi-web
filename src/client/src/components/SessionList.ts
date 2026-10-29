@@ -52,6 +52,7 @@ export class SessionList extends LitElement implements KeyboardNavigableSection 
   }
 
   @property({ attribute: false }) sessions: SessionInfo[] = [];
+  @property({ type: Boolean }) loading = false;
   @property({ attribute: false }) pinnedRootIds: string[] = [];
   @property({ attribute: false }) onPin?: (session: SessionInfo) => void;
   @property({ attribute: false }) onUnpin?: (session: SessionInfo) => void;
@@ -319,7 +320,8 @@ export class SessionList extends LitElement implements KeyboardNavigableSection 
       <section data-ui-context="sessions" data-collapsed=${this.collapsed}>
         ${this.renderHeading(tree.currentRows.length + tree.archivedRows.length, tree.currentSelectableSessions, unreadCount)}
         ${this.collapsed ? null : html`
-          <div class="list-body ui-nav-list">
+          <div class="list-body ui-nav-list" aria-busy=${String(this.loading)}>
+            ${this.loading ? html`<div class="list-status" role="status">${sessionNavigationMessages.t("loadingSessions")}</div>` : null}
             ${this.renderCurrentSelectionToolbar(tree.currentSelectableSessions)}
             ${this.startingCount > 0 ? this.renderStartingSession() : null}
             ${pinnedRowCount > 0 ? html`<h2 class="subheading pin-heading">${sessionNavigationMessages.t("pinned")}</h2>` : null}

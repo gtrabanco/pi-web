@@ -367,6 +367,7 @@ export class PiWebApp extends LitElement {
   private readonly dismissedRequiredPluginFailureByMachine = new Map<string, () => string>();
   private machineNavigationRestoreSeq = 0;
   private navigationSelectionSeq = 0;
+  @state() private pendingProjectNavigation: { seq: number; target: NavigationSection | undefined; cancelled: boolean } | undefined;
   private modelDialogInstanceId = 0;
   private routeRestoreSeq = 0;
   private routeSelectionRestoreSeq = 0;
@@ -769,6 +770,13 @@ export class PiWebApp extends LitElement {
     if (!patchChangesState(this.state, patch)) return;
     const previous = this.state;
     this.state = { ...this.state, ...patch };
+    const pending = this.pendingProjectNavigation;
+    if (pending?.seq === this.navigationSelectionSeq && !pending.cancelled && pending.target === undefined
+      && previous.isLoadingWorkspaces && !this.state.isLoadingWorkspaces && this.state.workspaceResolution !== undefined) {
+      // Decide the mobile destination from topology, without waiting for sessions.
+      pending.target = this.state.workspaceResolution.status !== "degraded" && this.state.workspaces.length === 1 ? "sessions" : "workspaces";
+      void this.focusNavigationTarget(pending.target, () => pending.seq === this.navigationSelectionSeq && !pending.cancelled);
+    }
     if (workspaceDeletionScopeKey(previous) !== workspaceDeletionScopeKey(this.state)) {
       this.cancelWorkspaceDeletionRefresh();
       if (Object.keys(this.state.workspaceDeletionRuns).length > 0) this.state = { ...this.state, workspaceDeletionRuns: {} };
@@ -2201,13 +2209,13 @@ export class PiWebApp extends LitElement {
   // Stable callback inputs let navigation children update for their own data,
   // rather than for every transcript delta rendered by the application shell.
   private readonly navigationActions = {
-    toggleMachines: () => { this.navigationSections.toggle("machines"); },
+    toggleMachines: () => { this.cancelAutomaticProjectNavigation(); this.navigationSections.toggle("machines"); },
     selectMachine: (machine: Machine) => this.selectNavigationItem("machines", "projects", () => this.selectMachineWithMemory(machine)),
     removeMachine: (machine: Machine) => { void this.removeMachine(machine); },
     showActions: () => { this.setState({ actionPaletteOpen: true }); },
-    toggleProjects: () => { this.navigationSections.toggle("projects"); },
-    toggleWorkspaces: () => { this.navigationSections.toggle("workspaces"); },
-    toggleSessions: () => { this.navigationSections.toggle("sessions"); },
+    toggleProjects: () => { this.cancelAutomaticProjectNavigation(); this.navigationSections.toggle("projects"); },
+    toggleWorkspaces: () => { this.cancelAutomaticProjectNavigation(); this.navigationSections.toggle("workspaces"); },
+    toggleSessions: () => { this.cancelAutomaticProjectNavigation(); this.navigationSections.toggle("sessions"); },
     selectProject: (project: Project) => this.selectNavigationItem("projects", "workspaces", () => this.selectProjectFromNavigation(project)),
     closeProject: (project: Project) => this.projects.closeProject(project.id),
     selectWorkspace: (workspace: Workspace) => this.selectNavigationItem("workspaces", "sessions", () => this.selectWorkspaceFromNavigation(workspace)),
@@ -2231,8 +2239,8 @@ export class PiWebApp extends LitElement {
     detachParentSession: (session: SessionInfo) => this.sessions.detachParent(session),
     reloadSession: (session: SessionInfo) => this.sessions.reloadSession(session),
     cleanupSessions: () => { this.openSessionCleanupDialog(); },
-    focusNavigationTarget: (target: NavigationFocusTarget) => { void this.focusNavigationTarget(target); },
-    cancelKeyboardNavigation: () => { void this.openChatAndFocusComposer(); },
+    focusNavigationTarget: (target: NavigationFocusTarget) => { this.cancelAutomaticProjectNavigation(); void this.focusNavigationTarget(target); },
+    cancelKeyboardNavigation: () => { this.cancelAutomaticProjectNavigation(); void this.openChatAndFocusComposer(); },
     moveProject: (project: Project, direction: -1 | 1) => { this.moveNavigationItem({ kind: "projects", machineId: selectedMachineId(this.state) }, project.id, direction); },
     moveWorkspace: (workspace: Workspace, direction: -1 | 1) => { this.moveNavigationItem({ kind: "workspaces", machineId: selectedMachineId(this.state), projectId: workspace.projectId }, workspace.id, direction); },
     pinSession: (session: SessionInfo) => { this.changeSessionPin(session, "pin"); },
@@ -2308,6 +2316,8 @@ export class PiWebApp extends LitElement {
         .selectedWorkspace=${this.state.selectedWorkspace}
         .deletingWorkspaceIds=${this.deletingWorkspaceIds}
         .sessions=${this.state.sessions}
+        .projectSelectionLoading=${this.pendingProjectNavigation?.seq === this.navigationSelectionSeq && this.state.isLoadingWorkspaces}
+        .sessionsLoading=${this.pendingProjectNavigation?.seq === this.navigationSelectionSeq && this.state.selectedWorkspace !== undefined && this.state.sessions.length === 0}
         .pinnedRootIds=${guard([this.navigationOrderVersion, selectedMachineId(this.state), this.state.selectedWorkspace?.id], () => sessionScope ? [...this.navigationOrder.ids(sessionScope)] : [])}
         .sessionStatuses=${this.state.sessionStatuses}
         .sessionActivities=${this.state.sessionActivities}
@@ -2361,7 +2371,12 @@ export class PiWebApp extends LitElement {
     `;
   }
 
+  private cancelAutomaticProjectNavigation(): void {
+    if (this.pendingProjectNavigation !== undefined) this.pendingProjectNavigation.cancelled = true;
+  }
+
   private openNavigationSection(section: NavigationSection): void {
+    this.cancelAutomaticProjectNavigation();
     this.navigationSections.open(section, () => { this.selectMainView("navigation"); });
   }
 
@@ -2370,17 +2385,24 @@ export class PiWebApp extends LitElement {
     const isCurrentSelection = () => seq === this.navigationSelectionSeq;
     let navigationAccepted: boolean | undefined;
 
-    await this.withChatScrollTransition(async () => {
-      this.navigationSections.advanceAfterSelection(section);
-      navigationAccepted = await action();
-    }, isCurrentSelection);
+    const pending: typeof this.pendingProjectNavigation = this.appShell.isMobileNavigationLayout && section === "projects"
+      ? { seq, target: undefined, cancelled: false } : undefined;
+    this.pendingProjectNavigation = pending;
+    try {
+      await this.withChatScrollTransition(async () => {
+        if (pending !== undefined) this.navigationSections.expand("projects");
+        else this.navigationSections.advanceAfterSelection(section);
+        navigationAccepted = await action();
+      }, isCurrentSelection);
 
-    if (!isCurrentSelection() || navigationAccepted === false) return;
-    // Only skip the automatic mobile step, after the new project's workspaces
-    // have loaded. Explicitly opening Workspaces must remain available.
-    const skipWorkspaceSelection = this.appShell.isMobileNavigationLayout && section === "projects" && nextTarget === "workspaces"
-      && this.state.workspaces.length === 1 && this.state.selectedWorkspace?.id === this.state.workspaces[0]?.id;
-    await this.focusNavigationTarget(skipWorkspaceSelection ? "sessions" : nextTarget, isCurrentSelection);
+      if (!isCurrentSelection() || navigationAccepted === false) return;
+      // Topology resolution already opened the destination. Never re-open it
+      // after session loading, which could override an explicit section choice.
+      if (pending !== undefined && (pending.target !== undefined || pending.cancelled)) return;
+      await this.focusNavigationTarget(nextTarget, isCurrentSelection);
+    } finally {
+      if (this.pendingProjectNavigation === pending) this.pendingProjectNavigation = undefined;
+    }
   }
 
   private async startSessionFromNavigation(): Promise<void> {

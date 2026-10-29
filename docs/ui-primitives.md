@@ -69,6 +69,8 @@ Local sticky headers, shadows, and decorations can still use small stacking valu
 
 ## Sidebar list surfaces
 
+`listStyles` provides `.list-status` for muted, padded loading feedback inside a list body. Use `role="status"` for announcements and `aria-busy` on the loading body.
+
 `sidebarListStyles` is the shared treatment for navigation lists. Projects, workspaces, and sessions expose supported context, anatomy, and state hooks through the [navigation-row styling contract](theme-styling-contract.md#sidebar-navigation-rows); those hooks reuse existing containers without changing row behavior. Grey section headers provide hierarchy above dark, continuous rows. Keep rows full-width and gapless; do not introduce inset card surfaces or visual gutters. Selected, hover, and keyboard-focus states remain on the entire row. Collapsed navigation sections keep the heading's 1px separator and omit the outer section border so adjacent borders do not double the line thickness.
 
 ## Dialog patterns
