@@ -101,10 +101,10 @@ export class AppContextBar extends LitElement {
 
   private renderMachineChipContent(machine: Machine | undefined) {
     const identity = machine ?? { id: "local", name: "PI-WEB", kind: "local" as const, createdAt: "", updatedAt: "" };
-    if (this.machines.length > 1) return html`<span class="context-value">${machineSelectionLabel(identity)}</span>`;
+    const label = this.machines.length > 1 ? machineSelectionLabel(identity) : machineContextLabel(identity);
     return html`
       <img class="context-chip-icon" src=${machineIconUrl(identity)} alt="" @error=${this.hideBrokenIcon} />
-      <span class="context-value">${machineContextLabel(identity)}</span>
+      <span class="context-value">${label}</span>
     `;
   }
 

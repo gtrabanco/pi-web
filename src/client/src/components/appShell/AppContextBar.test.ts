@@ -54,14 +54,14 @@ describe("machine crumb", () => {
     expect(machineChip(bar)?.querySelector("img")).not.toBeNull();
   });
 
-  it("is a plain machine picker without the URL", async () => {
+  it("shows the machine logo in the picker without the URL", async () => {
     const opened: string[] = [];
     const bar = await mountBar({ machines: [machine("local"), machine("remote-a")], onOpenSection: (section) => { opened.push(section); } });
 
     const chip = machineChip(bar);
     expect(chip?.tagName).toBe("BUTTON");
     expect(chip?.textContent).toContain("Local");
-    expect(chip?.querySelector("img")).toBeNull();
+    expect(chip?.querySelector("img")?.getAttribute("src")).toMatch(/\/favicon\.svg$/u);
     expect(chip?.textContent).not.toContain(document.location.host);
     chip?.click();
     expect(opened).toEqual(["machines"]);
@@ -75,6 +75,7 @@ describe("machine crumb", () => {
     expect(machineChip(bar)?.textContent).toContain(remote.name);
     expect(machineChip(bar)?.textContent).not.toContain("fleet-a.example.com");
     expect(machineChip(bar)?.title).toBe(remote.baseUrl);
+    expect(machineChip(bar)?.querySelector("img")?.getAttribute("src")).toBe("https://fleet-a.example.com/favicon.svg");
   });
 });
 
