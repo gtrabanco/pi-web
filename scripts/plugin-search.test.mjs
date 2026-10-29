@@ -115,13 +115,54 @@ describe("website plugin search", () => {
     root.querySelector("[data-plugin-more]").click();
     expect(root.querySelectorAll(".plugin-result")).toHaveLength(40);
     expect(fetch).toHaveBeenCalledTimes(3);
-    submit(window, root, "files & tools");
-    await vi.waitFor(() => expect(fetch).toHaveBeenCalledTimes(6));
+    submit(window, root, "   ");
     await vi.waitFor(() => expect(status.textContent).toContain("20 of 102 packages shown"));
-    expect(fetch.mock.calls.slice(3, 5).map(([url]) => url.searchParams.get("text"))).toEqual([
-      "files & tools keywords:pi-web.dev-plugin", "files & tools keywords:pi-web-plugin",
-    ]);
+    expect(fetch).toHaveBeenCalledTimes(3);
     expect(root.querySelectorAll(".plugin-result")).toHaveLength(20);
+    submit(window, root, "plugin-");
+    await vi.waitFor(() => expect(status.textContent).toContain("20 of 100 packages shown"));
+    expect(resultNames(root)[0]).toBe("plugin-099");
+    root.querySelector("[data-plugin-more]").click();
+    expect(resultNames(root)).toHaveLength(40);
+    expect(resultNames(root).every((name) => name.startsWith("plugin-"))).toBe(true);
+    expect(fetch).toHaveBeenCalledTimes(3);
+  });
+
+  it("filters keyword results by name and description rather than trusting npm free-text search", async () => {
+    const entries = [
+      { ...pkg("@scope/file-tools"), description: "Browse your workspace", monthlyDownloads: 300 },
+      { ...pkg("workspace-viewer"), description: "Find FILE tools", monthlyDownloads: 200 },
+      { ...pkg("file-only"), description: undefined },
+      { ...pkg("unrelated"), description: "Chat utilities" },
+    ];
+    // npm can return all keyword matches regardless of the submitted text.
+    const fetch = vi.fn(async () => response(entries));
+    const { window, root, status } = setup(fetch);
+    await vi.waitFor(() => expect(status.textContent).toBe("4 packages shown."));
+    submit(window, root, "  FiLe   TOOLS  ");
+    await vi.waitFor(() => expect(status.textContent).toBe("2 packages shown."));
+    expect(resultNames(root)).toEqual(["@scope/file-tools", "workspace-viewer"]);
+    expect(root.querySelector("[data-plugin-more]").hidden).toBe(true);
+    changeSort(window, root, "updated");
+    await vi.waitFor(() => expect(root.querySelector("select").disabled).toBe(false));
+    expect(resultNames(root)).toEqual(["@scope/file-tools", "workspace-viewer"]);
+    submit(window, root, "nonexistentzz123");
+    await vi.waitFor(() => expect(status.textContent).toContain("No matching plugins found"));
+    expect(resultNames(root)).toEqual([]);
+    submit(window, root, "");
+    await vi.waitFor(() => expect(status.textContent).toBe("4 packages shown."));
+    expect(resultNames(root)).toHaveLength(4);
+    expect(fetch).toHaveBeenCalledTimes(2);
+  });
+
+  it("keeps an empty catalog loaded rather than fetching it again on every search", async () => {
+    const fetch = vi.fn(async () => response());
+    const { window, root, status } = setup(fetch);
+    await vi.waitFor(() => expect(status.textContent).toContain("No matching plugins found"));
+    submit(window, root, "plugin");
+    await vi.waitFor(() => expect(root.querySelector("select").disabled).toBe(false));
+    expect(status.textContent).toContain("No matching plugins found");
+    expect(fetch).toHaveBeenCalledTimes(2);
   });
 
   it("sorts by monthly downloads by default, breaks ties by name, and reorders updates locally", async () => {
