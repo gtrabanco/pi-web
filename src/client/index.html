@@ -56,20 +56,18 @@
       html, body { margin: 0; height: 100%; overflow: hidden; background: var(--pi-bg); color: var(--pi-text); }
       body { min-height: 100dvh; }
       html[data-pi-web-loading] pi-web-app { visibility: hidden; }
-      #pi-web-startup { position: fixed; inset: 0; display: grid; place-content: center; justify-items: center; gap: 24px; color-scheme: light dark; background: Canvas; color: CanvasText; font: 16px system-ui, sans-serif; }
+      #pi-web-startup { position: fixed; inset: 0; display: grid; place-content: center; justify-items: center; color-scheme: light dark; background: Canvas; color: CanvasText; font: 16px system-ui, sans-serif; }
       /* Match the PI WEB mark in favicon.svg; the surrounding loader uses system colours. */
-      #pi-web-startup svg { width: 96px; height: 16px; fill: #00f0d8; }
-      @media (prefers-color-scheme: light) { #pi-web-startup svg { fill: #008c82; } }
-      .pi-web-startup-spinner { width: 24px; height: 24px; box-sizing: border-box; border: 2px solid currentColor; border-inline-end-color: transparent; border-radius: 50%; animation: pi-web-startup-spin 800ms linear infinite; }
-      @keyframes pi-web-startup-spin { to { transform: rotate(1turn); } }
-      @media (prefers-reduced-motion: reduce) { .pi-web-startup-spinner { animation: none; } }
+      #pi-web-startup svg { width: 96px; height: 16px; overflow: visible; color: #00f0d8; fill: currentColor; filter: drop-shadow(0 0 4px color-mix(in srgb, currentColor 25%, transparent)); animation: pi-web-startup-glow 2400ms ease-in-out infinite alternate; }
+      @media (prefers-color-scheme: light) { #pi-web-startup svg { color: #008c82; } }
+      @keyframes pi-web-startup-glow { to { filter: drop-shadow(0 0 8px color-mix(in srgb, currentColor 45%, transparent)); } }
+      @media (prefers-reduced-motion: reduce) { #pi-web-startup svg { animation: none; } }
       html:not([data-pi-web-loading]) #pi-web-startup { display: none; }
     </style>
   </head>
   <body>
     <div id="pi-web-startup" role="status" aria-label="Loading PI WEB">
       <svg viewBox="0 0 768 128" aria-hidden="true"><rect width="768" height="128" /></svg>
-      <span class="pi-web-startup-spinner" aria-hidden="true"></span>
     </div>
     <pi-web-app></pi-web-app>
     <script type="module" src="/src/startup.ts"></script>

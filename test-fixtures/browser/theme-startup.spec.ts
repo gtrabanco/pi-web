@@ -126,8 +126,8 @@ for (const colorScheme of ["light", "dark"] as const) {
     }, colorScheme === "light" ? "dark" : "light");
     await expect(loader).toHaveCSS("background-color", system.background);
     await expect(loader).toHaveCSS("color", system.text);
-    expect(await loader.locator("span").evaluate((element) => getComputedStyle(element).animationName)).not.toBe("none");
+    expect(await loader.locator("svg").evaluate((element) => getComputedStyle(element).animationName)).not.toBe("none");
     await page.emulateMedia({ reducedMotion: "reduce" });
-    await expect(loader.locator("span")).toHaveCSS("animation-name", "none");
+    await expect(loader.locator("svg")).toHaveCSS("animation-name", "none");
   });
 }
